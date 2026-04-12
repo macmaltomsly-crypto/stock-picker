@@ -3,17 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Political Stock Picker</title>
+<title>Business Insiders</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
-:root{--bg:#f7f7f5;--sf:#fff;--sf2:#f2f2f0;--bd:#e8e8e5;--bd2:#dededd;--tx:#111;--tx2:#444;--tx3:#888;--tx4:#bbb;--green:#2e7d32;--red:#c62828;--blue:#1565c0;--or:#e65100}
+:root{--bg:#f7f7f5;--sf:#fff;--sf2:#f2f2f0;--bd:#e8e8e5;--bd2:#dededd;--tx:#111;--tx2:#444;--tx3:#888;--tx4:#bbb}
 [data-dark]{--bg:#0e0e0e;--sf:#1a1a1a;--sf2:#141414;--bd:#2c2c2c;--bd2:#383838;--tx:#eeedea;--tx2:#aaa;--tx3:#666;--tx4:#3a3a3a}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;padding:1.25rem 1rem;display:flex;justify-content:center;transition:background .25s,color .25s}
 .wrap{width:100%;max-width:660px}
-.app-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem}
-h1{font-size:21px;font-weight:700;margin-bottom:2px}
-.sub{font-size:12px;color:var(--tx3)}
+.app-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem}
+.brand{display:flex;align-items:center;gap:11px}
+.logo-svg rect{transition:fill .25s}
+h1{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:2px}
+.sub{font-size:11px;color:var(--tx3)}
 .dark-btn,.connect-btn,.btn,.refresh-btn,.export-btn{cursor:pointer;transition:opacity .15s}
 .dark-btn{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--tx2)}
 .dark-btn:hover,.connect-btn:hover,.btn:hover{opacity:.85}
@@ -171,6 +173,7 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 .export-btn:hover{background:var(--sf2)}
 .wl-add{display:flex;gap:8px;margin-bottom:1rem}
 .wl-add input{flex:1;padding:10px 14px;border:1px solid var(--bd2);border-radius:10px;font-size:14px;background:var(--sf);color:var(--tx);outline:none;text-transform:uppercase}
+.wl-add input:focus{border-color:var(--tx3)}
 .wl-add button{padding:10px 18px;font-size:14px;font-weight:600;border:none;border-radius:10px;background:var(--tx);color:var(--bg);cursor:pointer}
 .wl-it{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:1rem 1.2rem;margin-bottom:.5rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .wl-tk{font-size:18px;font-weight:800;min-width:55px}
@@ -197,11 +200,13 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 .al-inf{flex:1;font-size:13px}
 .al-del{background:none;border:none;color:var(--tx4);cursor:pointer;font-size:18px;line-height:1}
 .al-del:hover{color:#c62828}
-.earn-c{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:1rem 1.2rem;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:center}
-.earn-sy{font-size:16px;font-weight:800}
-.earn-co{font-size:11px;color:var(--tx4)}
-.earn-dv{font-size:13px;font-weight:700;text-align:right}
-.earn-dy{font-size:11px;margin-top:2px;text-align:right}
+/* earnings */
+.earn-c{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:.85rem 1.1rem;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.earn-sy{font-size:15px;font-weight:800}
+.earn-co{font-size:11px;color:var(--tx4);margin-top:1px}
+.earn-right{text-align:right;flex-shrink:0}
+.earn-dv{font-size:13px;font-weight:700}
+.earn-dy{font-size:11px;margin-top:2px}
 .earn-so{color:#e65100}.earn-ok{color:var(--tx3)}.earn-to{color:#c62828;font-weight:700}
 .sec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:1.25rem}
 @media(max-width:360px){.sec-grid{grid-template-columns:1fr}}
@@ -261,6 +266,21 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 .srch-st{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
 .nws{font-size:11px;color:var(--tx3);text-decoration:none;padding:3px 8px;border:1px solid var(--bd2);border-radius:6px;background:var(--sf2)}
 .nws:hover{background:var(--bd2)}
+/* search autocomplete */
+.srch-wrap{position:relative}
+.srch-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.13);z-index:50;max-height:280px;overflow-y:auto;display:none}
+.srch-drop.open{display:block}
+.srch-item{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--bd)}
+.srch-item:last-child{border-bottom:none}
+.srch-item:hover,.srch-item.focused{background:var(--sf2)}
+.srch-tk{font-size:14px;font-weight:800;min-width:58px;color:var(--tx);font-family:monospace}
+.srch-nm{font-size:13px;color:var(--tx2);flex:1}
+.srch-sc{font-size:10px;color:var(--tx4);white-space:nowrap;padding:2px 8px;background:var(--sf2);border-radius:20px;border:1px solid var(--bd2)}
+.srch-inp{flex:1;padding:12px 14px;border:1.5px solid var(--bd2);border-radius:10px;font-size:14px;background:var(--sf);color:var(--tx);outline:none;transition:border-color .15s}
+.srch-inp:focus{border-color:#1565c0}
+.srch-btn{padding:12px 22px;font-size:14px;font-weight:600;border:none;border-radius:10px;background:var(--tx);color:var(--bg);cursor:pointer;white-space:nowrap;transition:opacity .15s}
+.srch-btn:hover{opacity:.85}
+/* modal */
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
 .modal-ov.open{opacity:1;pointer-events:all}
 .modal-sh{background:var(--sf);border-radius:18px 18px 0 0;padding:1.5rem;width:100%;max-width:660px;max-height:88vh;overflow-y:auto;transform:translateY(30px);transition:transform .2s}
@@ -269,6 +289,7 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 .mo-t{font-size:17px;font-weight:800}
 .mo-s{font-size:12px;color:var(--tx3);margin-bottom:14px}
 .mo-cl{background:none;border:none;font-size:24px;color:var(--tx3);cursor:pointer;line-height:1}
+/* shared */
 .spin{text-align:center;padding:2.5rem 1rem;background:var(--sf);border:1px solid var(--bd);border-radius:14px}
 .spn{width:24px;height:24px;border:3px solid var(--bd);border-top-color:var(--tx);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -289,10 +310,26 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 </head>
 <body>
 <div class="wrap">
+
+  <!-- HEADER -->
   <div class="app-hdr">
-    <div><h1>Political Stock Picker</h1><p class="sub">Politicians &middot; Billionaires &middot; Institutions &middot; Insiders &middot; Options &middot; Retail</p></div>
+    <div class="brand">
+      <svg class="logo-svg" width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="42" height="42" rx="12" fill="#0d3b6e"/>
+        <polyline points="7,32 13,22 19,27 26,16 35,11" stroke="#60a5fa" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="35" cy="11" r="4" fill="#34d399"/>
+        <rect x="7" y="36" width="28" height="2" rx="1" fill="#1e4d8c"/>
+        <rect x="7" y="36" width="10" height="2" rx="1" fill="#2e7d32" opacity=".6"/>
+      </svg>
+      <div>
+        <h1>Business Insiders</h1>
+        <p class="sub">Politicians &middot; Billionaires &middot; Institutions &middot; Insiders &middot; Options &middot; Retail</p>
+      </div>
+    </div>
     <button class="dark-btn" id="darkBtn" onclick="toggleDark()">&#127769; Dark</button>
   </div>
+
+  <!-- BROKER -->
   <div class="panel">
     <div class="panel-top"><span class="panel-title">Alpaca Brokerage</span><span class="status-row"><span class="dot" id="sDot"></span><span id="sTxt">Not connected</span></span></div>
     <div class="mode-tog"><button class="mode-btn active" id="mPaper" onclick="setMode('paper')">Paper Trading</button><button class="mode-btn" id="mLive" onclick="setMode('live')">Live Trading</button></div>
@@ -307,12 +344,14 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
     <div class="ab-row">
       <span class="ab-lbl">Auto daily buy:</span>
       <label class="tg"><input type="checkbox" id="abToggle" onchange="saveAB()"><span class="tg-sl"></span></label>
-      <input class="ab-in" type="time" id="abTime" value="09:35" onchange="saveAB()" style="width:95px" title="EST market open"/>
+      <input class="ab-in" type="time" id="abTime" value="09:35" onchange="saveAB()" style="width:95px" title="EST time"/>
       <input class="ab-in" type="text" id="abTicker" placeholder="TICKER" maxlength="6" oninput="this.value=this.value.toUpperCase();saveAB()" style="width:80px"/>
       <span style="font-size:10px;color:var(--tx4)">Tab must stay open</span>
     </div>
     <div class="hint" id="brokerHint">Free account at <a href="https://alpaca.markets" target="_blank">alpaca.markets</a> &mdash; start with Paper Trading. Keys stored locally only.</div>
   </div>
+
+  <!-- ORDER SIZE -->
   <div class="amt-row">
     <span class="amt-lbl">Order size:</span>
     <button class="amt-btn active" onclick="setAmt(5,this)">$5</button>
@@ -322,6 +361,8 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
     <button class="amt-btn" onclick="setAmt(100,this)">$100</button>
     <input class="amt-cust" id="customAmt" type="number" placeholder="Custom" min="1" oninput="setCustomAmt(this)"/>
   </div>
+
+  <!-- TABS -->
   <div class="tabs">
     <button class="tab active" onclick="showTab('picks',this)">Picks</button>
     <button class="tab" onclick="showTab('sectors',this)">Sectors</button>
@@ -330,21 +371,29 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
     <button class="tab" onclick="showTab('orders',this)">Orders</button>
     <button class="tab" onclick="showTab('search',this)">&#128269; Search</button>
   </div>
+
   <div id="tab-picks"><button class="btn" id="pickBtn" onclick="run()">Get today's picks</button><div id="picksOut"></div></div>
   <div id="tab-sectors" style="display:none"><div id="sectorsOut"></div></div>
   <div id="tab-portfolio" style="display:none"><button class="refresh-btn" onclick="loadPortfolio()">&#8635; Refresh</button><div id="portfolioOut"><div class="empty">Connect your Alpaca account to view your portfolio</div></div></div>
   <div id="tab-watchlist" style="display:none"><div id="watchlistOut"></div></div>
   <div id="tab-orders" style="display:none"><button class="refresh-btn" onclick="loadOrders()">&#8635; Refresh</button><button class="export-btn" onclick="exportCSV()">&#8595; Export CSV</button><div id="ordersOut"><div class="empty">Connect your Alpaca account to view orders</div></div></div>
+
+  <!-- SEARCH TAB -->
   <div id="tab-search" style="display:none">
-    <div style="display:flex;gap:8px;margin-bottom:.5rem">
-      <input id="srchIn" class="fi" type="text" placeholder="Any ticker e.g. AAPL, TSLA, AMD..." style="flex:1;font-size:14px;padding:11px 14px;text-transform:uppercase" maxlength="10" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')searchStock()"/>
-      <button class="connect-btn" style="width:auto;padding:11px 22px" onclick="searchStock()">Search</button>
+    <div class="srch-wrap" style="margin-bottom:.75rem">
+      <div style="display:flex;gap:8px">
+        <input id="srchIn" class="srch-inp" type="text" placeholder="Search by company name or ticker &mdash; Apple, NVDA, Tesla, Goldman..." autocomplete="off" oninput="onSearchInput(this)" onkeydown="onSearchKey(event)"/>
+        <button class="srch-btn" onclick="searchStock()">Search</button>
+      </div>
+      <div class="srch-drop" id="srchDrop"></div>
     </div>
-    <p style="font-size:12px;color:var(--tx3);margin-bottom:1rem">Search any US-listed stock &mdash; live price, signals, who's buying, and buy directly.</p>
+    <p style="font-size:12px;color:var(--tx3);margin-bottom:1rem">Search any US-listed stock &mdash; live price, signals, who's buying, analyst data, and buy directly.</p>
     <div id="searchOut"></div>
   </div>
-  <p class="disc">Not financial advice. For informational purposes only. AI predictions are model-generated estimates. Data from STOCK Act disclosures, 13F filings, SEC Form 4, options flow, and social sentiment. Alerts require tab to stay open.</p>
+
+  <p class="disc">Business Insiders is for informational and entertainment purposes only. Not financial advice. AI predictions are model-generated estimates. Data sourced from STOCK Act disclosures, 13F filings, SEC Form 4, options flow, and social sentiment. Alerts require this tab to remain open.</p>
 </div>
+
 <div class="modal-ov" id="modalOv" onclick="maybeClose(event)">
   <div class="modal-sh"><div class="mo-top"><div class="mo-t" id="moT"></div><button class="mo-cl" onclick="closeModal()">&#215;</button></div><div class="mo-s" id="moS"></div><div id="moB"></div></div>
 </div>
