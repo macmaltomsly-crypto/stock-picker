@@ -306,6 +306,64 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
 .toast.err{background:#c62828}
 .toast.inf{background:#1565c0}
 .disc{font-size:11px;color:var(--tx4);margin-top:1.25rem;line-height:1.6}
+/* ─── CRYPTO TAB ──────────────────────────────────────────────────────────── */
+.cr-sub{display:flex;border:1px solid var(--bd2);border-radius:8px;overflow:hidden;margin-bottom:1rem}
+.cr-sub-btn{flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:none;background:var(--sf2);color:var(--tx3);cursor:pointer;transition:all .15s}
+.cr-sub-btn.active{background:var(--tx);color:var(--bg)}
+.cr-card{background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:1.2rem;margin-bottom:.75rem;transition:border-color .15s}
+.cr-card:hover{border-color:var(--tx3)}
+.cr-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.cr-sym{font-size:22px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.cr-icon{font-size:20px}
+.cr-nm{font-size:12px;color:var(--tx4);margin-top:2px}
+.cr-rt{text-align:right;flex-shrink:0}
+.cr-pr{font-size:20px;font-weight:700}
+.cr-ch{font-size:13px;font-weight:600;margin-top:2px}
+.cr-ch.up{color:#2e7d32}.cr-ch.dn{color:#c62828}
+.cr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.cr-st{background:var(--sf2);border-radius:8px;padding:8px 10px;text-align:center}
+.cr-st-v{font-size:13px;font-weight:600}
+.cr-st-l{font-size:10px;color:var(--tx4);margin-top:2px}
+.cr-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cr-buy{padding:8px 14px;font-size:13px;font-weight:700;border:none;border-radius:8px;background:var(--tx);color:var(--bg);cursor:pointer;transition:opacity .15s}
+.cr-buy:hover{opacity:.85}
+.cr-buy.paper{background:#1565c0;color:#fff}
+.cr-wl-btn{padding:7px 12px;font-size:12px;font-weight:600;border:1px solid var(--bd2);border-radius:8px;background:var(--sf2);color:var(--tx2);cursor:pointer}
+.cr-wl-btn:hover{background:var(--bd2)}
+.cr-cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.25rem}
+@media(max-width:400px){.cr-cat-grid{grid-template-columns:repeat(2,1fr)}}
+.cr-cat{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .15s}
+.cr-cat:hover{border-color:var(--tx3)}
+.cr-cat.active{border-color:var(--tx);border-width:2px;background:var(--sf2)}
+.cr-cat-ic{font-size:20px;margin-bottom:3px}
+.cr-cat-nm{font-size:11px;font-weight:700}
+.cr-cat-ct{font-size:10px;color:var(--tx4);margin-top:1px}
+.cr-pos{background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:1.2rem;margin-bottom:.75rem}
+.cr-pos-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.cr-pos-sym{font-size:20px;font-weight:800;letter-spacing:-.5px}
+.cr-pos-nm{font-size:11px;color:var(--tx4);margin-top:2px}
+.cr-pos-val{font-size:18px;font-weight:700}
+.cr-pos-pl{font-size:13px;font-weight:600;margin-top:3px}
+.cr-pos-pl.up{color:#2e7d32}.cr-pos-pl.dn{color:#c62828}
+.cr-srch{display:flex;gap:8px;margin-bottom:1rem}
+.cr-srch input{flex:1;padding:10px 14px;border:1px solid var(--bd2);border-radius:10px;font-size:14px;background:var(--sf);color:var(--tx);outline:none;text-transform:uppercase}
+.cr-srch input:focus{border-color:var(--tx3)}
+.cr-srch button{padding:10px 18px;font-size:14px;font-weight:600;border:none;border-radius:10px;background:var(--tx);color:var(--bg);cursor:pointer}
+.cr-wl-it{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:1rem 1.2rem;margin-bottom:.5rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cr-wl-tk{font-size:18px;font-weight:800;min-width:70px}
+.cr-wl-inf{flex:1;min-width:80px}
+.cr-wl-pr{font-size:15px;font-weight:600}
+.cr-wl-ch{font-size:12px;font-weight:600;margin-top:2px}
+.cr-wl-ch.up{color:#2e7d32}.cr-wl-ch.dn{color:#c62828}
+.cr-wl-acts{display:flex;gap:6px;flex-wrap:wrap}
+.cr-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;display:inline-block}
+.cr-b-btc{background:#fff7e6;color:#f7931a}[data-dark] .cr-b-btc{background:#2e1f00;color:#f7931a}
+.cr-b-eth{background:#eef0ff;color:#627eea}[data-dark] .cr-b-eth{background:#0f1233;color:#627eea}
+.cr-b-sol{background:#f0fff0;color:#14f195}[data-dark] .cr-b-sol{background:#001a00;color:#14f195}
+.cr-b-defi{background:#f3e8fd;color:#7b1fa2}[data-dark] .cr-b-defi{background:#2d1b40;color:#ce93d8}
+.cr-b-meme{background:#fce4ec;color:#e91e63}[data-dark] .cr-b-meme{background:#3a0a14;color:#f48fb1}
+.cr-b-stable{background:#e0f7fa;color:#00695c}[data-dark] .cr-b-stable{background:#0a2e30;color:#4dd0e1}
+.cr-b-alt{background:#fff3e0;color:#e65100}[data-dark] .cr-b-alt{background:#3a1f05;color:#ffb74d}
 </style>
 </head>
 <body>
@@ -366,14 +424,36 @@ input:checked+.tg-sl:before{transform:translateX(16px)}
   <div class="tabs">
     <button class="tab active" onclick="showTab('picks',this)">Picks</button>
     <button class="tab" onclick="showTab('sectors',this)">Sectors</button>
+    <button class="tab" onclick="showTab('crypto',this)">Crypto</button>
     <button class="tab" onclick="showTab('portfolio',this)">Portfolio</button>
     <button class="tab" onclick="showTab('watchlist',this)">Watchlist</button>
     <button class="tab" onclick="showTab('orders',this)">Orders</button>
-    <button class="tab" onclick="showTab('search',this)">&#128269; Search</button>
+    <button class="tab" onclick="showTab('search',this)">&#128269;</button>
   </div>
 
   <div id="tab-picks"><button class="btn" id="pickBtn" onclick="run()">Get today's picks</button><div id="picksOut"></div></div>
   <div id="tab-sectors" style="display:none"><div id="sectorsOut"></div></div>
+  <!-- CRYPTO TAB -->
+  <div id="tab-crypto" style="display:none">
+    <div class="cr-sub">
+      <button class="cr-sub-btn active" onclick="showCryptoSub('market',this)">Market</button>
+      <button class="cr-sub-btn" onclick="showCryptoSub('crPortfolio',this)">Portfolio</button>
+      <button class="cr-sub-btn" onclick="showCryptoSub('crWatchlist',this)">Watchlist</button>
+    </div>
+    <div id="crSub-market">
+      <div id="crCatGrid"></div>
+      <div id="cryptoOut"><button class="btn" onclick="loadCryptoMarket()">Load crypto market</button></div>
+    </div>
+    <div id="crSub-crPortfolio" style="display:none">
+      <button class="refresh-btn" onclick="loadCryptoPositions()">&#8635; Refresh</button>
+      <div id="crPortfolioOut"><div class="empty">Connect your Alpaca account to view crypto positions</div></div>
+    </div>
+    <div id="crSub-crWatchlist" style="display:none">
+      <div class="cr-srch"><input id="crWlInput" type="text" placeholder="Add crypto e.g. BTC" maxlength="10" onkeydown="if(event.key==='Enter')addToCrWL(this.value)"/><button onclick="addToCrWL(document.getElementById('crWlInput').value)">Add</button></div>
+      <div id="crWatchlistOut"></div>
+    </div>
+  </div>
+
   <div id="tab-portfolio" style="display:none"><button class="refresh-btn" onclick="loadPortfolio()">&#8635; Refresh</button><div id="portfolioOut"><div class="empty">Connect your Alpaca account to view your portfolio</div></div></div>
   <div id="tab-watchlist" style="display:none"><div id="watchlistOut"></div></div>
   <div id="tab-orders" style="display:none"><button class="refresh-btn" onclick="loadOrders()">&#8635; Refresh</button><button class="export-btn" onclick="exportCSV()">&#8595; Export CSV</button><div id="ordersOut"><div class="empty">Connect your Alpaca account to view orders</div></div></div>
