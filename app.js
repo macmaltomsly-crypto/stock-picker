@@ -23,7 +23,7 @@ var SEARCH_DB=[
   {t:'ISRG',n:'Intuitive Surgical Inc.',s:'Healthcare'},{t:'RTX',n:'RTX Corporation',s:'Defense'},
   {t:'GE',n:'GE Aerospace',s:'Industrials'},{t:'NOW',n:'ServiceNow Inc.',s:'Technology'},
   {t:'TXN',n:'Texas Instruments',s:'Technology'},{t:'QCOM',n:'Qualcomm Inc.',s:'Technology'},
-  {t:'PANW',n:'Palo Alto Networks',s:'Technology'},
+  {t:'PANW',n:'Palo Alto Networks',s:'Technology'},{t:'AMD',n:'Advanced Micro Devices',s:'Technology'},
   {t:'INTC',n:'Intel Corporation',s:'Technology'},{t:'IBM',n:'IBM Corporation',s:'Technology'},
   {t:'SNOW',n:'Snowflake Inc.',s:'Technology'},{t:'SHOP',n:'Shopify Inc.',s:'Technology'},
   {t:'COIN',n:'Coinbase Global Inc.',s:'Financial'},{t:'HOOD',n:'Robinhood Markets Inc.',s:'Financial'},
@@ -38,7 +38,7 @@ var SEARCH_DB=[
   {t:'BRK.A',n:'Berkshire Hathaway A',s:'Financial'},{t:'C',n:'Citigroup Inc.',s:'Financial'},
   {t:'USB',n:'U.S. Bancorp',s:'Financial'},{t:'PNC',n:'PNC Financial Services',s:'Financial'},
   {t:'BA',n:'Boeing Company',s:'Defense'},{t:'LMT',n:'Lockheed Martin Corp.',s:'Defense'},
-  {t:'NOC',n:'Northrop Grumman Corp.',s:'Defense'},
+  {t:'RTX',n:'RTX Corporation',s:'Defense'},{t:'NOC',n:'Northrop Grumman Corp.',s:'Defense'},
   {t:'GD',n:'General Dynamics Corp.',s:'Defense'},{t:'HII',n:'Huntington Ingalls Industries',s:'Defense'},
   {t:'AXON',n:'Axon Enterprise Inc.',s:'Defense'},{t:'KTOS',n:'Kratos Defense & Security',s:'Defense'},
   {t:'RCAT',n:'Red Cat Holdings Inc.',s:'Defense'},{t:'LDOS',n:'Leidos Holdings Inc.',s:'Defense'},
@@ -77,24 +77,6 @@ var SEARCH_DB=[
   {t:'TMO',n:'Thermo Fisher Scientific',s:'Healthcare'},{t:'ABT',n:'Abbott Laboratories',s:'Healthcare'},
   {t:'SYK',n:'Stryker Corporation',s:'Healthcare'},{t:'VRTX',n:'Vertex Pharmaceuticals',s:'Healthcare'},
   {t:'LOW',n:'Lowe\'s Companies Inc.',s:'Consumer'},{t:'TGT',n:'Target Corporation',s:'Consumer'},
-  // Crypto
-  {t:'BTC/USD',n:'Bitcoin',s:'Crypto'},{t:'ETH/USD',n:'Ethereum',s:'Crypto'},
-  {t:'SOL/USD',n:'Solana',s:'Crypto'},{t:'AVAX/USD',n:'Avalanche',s:'Crypto'},
-  {t:'DOT/USD',n:'Polkadot',s:'Crypto'},{t:'ATOM/USD',n:'Cosmos',s:'Crypto'},
-  {t:'NEAR/USD',n:'NEAR Protocol',s:'Crypto'},{t:'ALGO/USD',n:'Algorand',s:'Crypto'},
-  {t:'LTC/USD',n:'Litecoin',s:'Crypto'},{t:'BCH/USD',n:'Bitcoin Cash',s:'Crypto'},
-  {t:'LINK/USD',n:'Chainlink',s:'Crypto'},{t:'UNI/USD',n:'Uniswap',s:'Crypto'},
-  {t:'AAVE/USD',n:'Aave',s:'Crypto'},{t:'MKR/USD',n:'Maker',s:'Crypto'},
-  {t:'CRV/USD',n:'Curve',s:'Crypto'},{t:'GRT/USD',n:'The Graph',s:'Crypto'},
-  {t:'SUSHI/USD',n:'SushiSwap',s:'Crypto'},{t:'DOGE/USD',n:'Dogecoin',s:'Crypto'},
-  {t:'SHIB/USD',n:'Shiba Inu',s:'Crypto'},{t:'PEPE/USD',n:'Pepe',s:'Crypto'},
-  {t:'MATIC/USD',n:'Polygon',s:'Crypto'},{t:'ARB/USD',n:'Arbitrum',s:'Crypto'},
-  {t:'OP/USD',n:'Optimism',s:'Crypto'},{t:'XLM/USD',n:'Stellar',s:'Crypto'},
-  {t:'XRP/USD',n:'Ripple',s:'Crypto'},{t:'XTZ/USD',n:'Tezos',s:'Crypto'},
-  {t:'FIL/USD',n:'Filecoin',s:'Crypto'},{t:'RENDER/USD',n:'Render',s:'Crypto'},
-  {t:'INJ/USD',n:'Injective',s:'Crypto'},{t:'TIA/USD',n:'Celestia',s:'Crypto'},
-  {t:'SEI/USD',n:'Sei',s:'Crypto'},{t:'SUI/USD',n:'Sui',s:'Crypto'},
-  {t:'APT/USD',n:'Aptos',s:'Crypto'},
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -104,26 +86,7 @@ var SCREENER={rating:'',conv:0,sig:''};
 var PAPER='https://paper-api.alpaca.markets',LIVE_URL='https://api.alpaca.markets';
 
 function base(){return MODE==='paper'?PAPER:LIVE_URL;}
-var CORS_PROXIES=[
-  function(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u);},
-  function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u);},
-  function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u);}
-];
-var activeProxy=0;
-function prx(u){return CORS_PROXIES[activeProxy](u);}
-function fetchWithFallback(url,opts){
-  var tried=0;
-  function attempt(){
-    return fetch(prx(url),opts).then(function(r){
-      if(!r.ok&&tried<CORS_PROXIES.length-1){tried++;activeProxy=(activeProxy+1)%CORS_PROXIES.length;return attempt();}
-      return r;
-    }).catch(function(e){
-      if(tried<CORS_PROXIES.length-1){tried++;activeProxy=(activeProxy+1)%CORS_PROXIES.length;return attempt();}
-      throw e;
-    });
-  }
-  return attempt();
-}
+function prx(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u);}
 function hdrs(){return {'APCA-API-KEY-ID':document.getElementById('apiKey').value.trim(),'APCA-API-SECRET-KEY':document.getElementById('apiSec').value.trim(),'Content-Type':'application/json'};}
 function alpaca(path,opts){opts=opts||{};return fetch(base()+path,Object.assign({},opts,{headers:Object.assign({},hdrs(),opts.headers||{})}));}
 function f$(v){return '$'+parseFloat(v||0).toFixed(2);}
@@ -150,11 +113,10 @@ function setAmt(n,el){ORDER_AMT=n;document.querySelectorAll('.amt-btn').forEach(
 function setCustomAmt(el){var v=parseFloat(el.value);if(v>0){ORDER_AMT=v;document.querySelectorAll('.amt-btn').forEach(function(b){b.classList.remove('active');});}}
 function showToast(msg,type,dur){type=type||'';dur=dur||3200;var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},dur);}
 function showTab(name,el){
-  ['picks','sectors','crypto','portfolio','watchlist','orders','search'].forEach(function(t){document.getElementById('tab-'+t).style.display='none';});
+  ['picks','sectors','portfolio','watchlist','orders','search'].forEach(function(t){document.getElementById('tab-'+t).style.display='none';});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   document.getElementById('tab-'+name).style.display='block';el.classList.add('active');
   if(name==='sectors')renderSectorGrid();
-  if(name==='crypto')initCryptoTab();
   if(name==='portfolio')loadPortfolio();
   if(name==='watchlist')renderWatchlist();
   if(name==='orders'&&CONNECTED)loadOrders();
@@ -477,9 +439,9 @@ function renderPortfolioChart(hist){
   if(!canvas||typeof Chart==='undefined') return;
   if(CHART_INST){CHART_INST.destroy();CHART_INST=null;}
   if(!hist||!hist.timestamp||!hist.timestamp.length) return;
-  var isDark=document.body.hasAttribute('data-dark');
-  var gColor=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)';
-  var tColor=isDark?'#666':'#bbb';
+  var isDark=!document.body.hasAttribute('data-light');
+  var gColor=isDark?'rgba(255,255,255,.05)':'rgba(0,0,0,.06)';
+  var tColor=isDark?'#4a5568':'#bbb';
   var pairs=hist.timestamp.map(function(t,i){return {t:t,v:hist.equity[i]};}).filter(function(x){return x.v>0;});
   if(!pairs.length) return;
   var labels=pairs.map(function(x){return new Date(x.t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'});});
@@ -555,7 +517,7 @@ function startAlertChecker(){
   setInterval(function(){
     var active=getAlerts().filter(function(a){return !a.triggered;});if(!active.length) return;
     var syms=active.map(function(a){return a.ticker;}).filter(function(v,i,arr){return arr.indexOf(v)===i;}).join(',');
-    fetchWithFallback('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+syms).then(function(r){return r.json();}).then(function(d){
+    fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+syms)).then(function(r){return r.json();}).then(function(d){
       var all=getAlerts();var changed=false;
       (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){
         LIVE_PRICES[q.symbol]=q.regularMarketPrice;var price=q.regularMarketPrice;
@@ -585,7 +547,7 @@ function renderWatchlist(){
   var out=document.getElementById('watchlistOut');if(!out) return;
   var wl=getWL();var alerts=getAlerts();
   if(Notification.permission==='default'&&!localStorage.getItem('psp_notif')){Notification.requestPermission().then(function(){localStorage.setItem('psp_notif','1');});}
-  var pricesP=wl.length?fetchWithFallback('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+wl.join(',')).then(function(r){return r.json();}).catch(function(){return {};})
+  var pricesP=wl.length?fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+wl.join(','))).then(function(r){return r.json();}).catch(function(){return {};})
     :Promise.resolve({});
   pricesP.then(function(d){
     var prices={};(d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){prices[q.symbol]={price:q.regularMarketPrice,change:q.regularMarketChangePercent||0};LIVE_PRICES[q.symbol]=q.regularMarketPrice;});
@@ -801,18 +763,8 @@ function searchStock(){
   var ticker=(fromDB?fromDB.t:raw).toUpperCase();
   if(!ticker){showToast('Enter a company name or ticker symbol','err');return;}
   closeSearchDrop();
-  // If it's a crypto pair, switch to crypto tab
-  var isCrypto=CRYPTO_DB.find(function(c){return c.sym===ticker||c.sym.replace('/USD','')===ticker;});
-  if(isCrypto){
-    var crTab=document.querySelector('.tab:nth-child(3)');
-    showTab('crypto',crTab);
-    setCryptoCat('All');
-    showToast('Showing '+isCrypto.name+' in Crypto tab','inf');
-    return;
-  }
-  var out=document.getElementById('searchOut');
   out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Looking up '+ticker+'...</div></div>';
-  fetchWithFallback('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ticker).then(function(r){return r.json();}).then(function(d){
+  fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ticker)).then(function(r){return r.json();}).then(function(d){
     var q=(d&&d.quoteResponse&&d.quoteResponse.result||[])[0];
     if(!q||!q.regularMarketPrice){out.innerHTML='<div class="empty">No results for "'+ticker+'" -- check the symbol and try again</div>';return;}
     LIVE_PRICES[q.symbol]=q.regularMarketPrice;
@@ -841,7 +793,7 @@ function searchStock(){
 // ─── PRICES + PICKS ───────────────────────────────────────────────────────────
 var STEPS=['Fetching live prices...','Scoring all signals...','Running AI models...','Finalizing picks...'];
 function fetchPrices(){
-  return fetchWithFallback('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ALL_STOCKS.map(function(s){return s.ticker;}).join(',')).then(function(r){return r.json();}).then(function(d){
+  return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ALL_STOCKS.map(function(s){return s.ticker;}).join(','))).then(function(r){return r.json();}).then(function(d){
     (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});if(s&&q.regularMarketPrice){s.livePrice=q.regularMarketPrice;LIVE_PRICES[q.symbol]=q.regularMarketPrice;}});
     return true;
   }).catch(function(){return false;});
@@ -902,309 +854,6 @@ function run(){
   fetchPrices().then(function(live){
     clearInterval(t);renderPicks(getDailyPick(),live);
     btn.textContent='Refresh picks';btn.disabled=false;
-  });
-}
-
-// ─── CRYPTO DATABASE ─────────────────────────────────────────────────────────
-var CRYPTO_DB=[
-  {sym:'BTC/USD',name:'Bitcoin',icon:'\u20BF',cat:'Layer 1',badge:'cr-b-btc',desc:'Digital gold. Largest cryptocurrency by market cap.'},
-  {sym:'ETH/USD',name:'Ethereum',icon:'\u039E',cat:'Layer 1',badge:'cr-b-eth',desc:'Smart contract platform. DeFi and NFT backbone.'},
-  {sym:'SOL/USD',name:'Solana',icon:'\u25C9',cat:'Layer 1',badge:'cr-b-sol',desc:'High-speed blockchain. Sub-second finality.'},
-  {sym:'AVAX/USD',name:'Avalanche',icon:'\u25B2',cat:'Layer 1',badge:'cr-b-alt',desc:'Subnet architecture for custom blockchains.'},
-  {sym:'DOT/USD',name:'Polkadot',icon:'\u25CF',cat:'Layer 1',badge:'cr-b-alt',desc:'Cross-chain interoperability protocol.'},
-  {sym:'ATOM/USD',name:'Cosmos',icon:'\u2699',cat:'Layer 1',badge:'cr-b-alt',desc:'Internet of blockchains. IBC protocol.'},
-  {sym:'NEAR/USD',name:'NEAR Protocol',icon:'\u24C3',cat:'Layer 1',badge:'cr-b-alt',desc:'Sharded proof-of-stake L1 with account abstraction.'},
-  {sym:'ALGO/USD',name:'Algorand',icon:'\u25C7',cat:'Layer 1',badge:'cr-b-alt',desc:'Pure proof-of-stake. Instant finality.'},
-  {sym:'LTC/USD',name:'Litecoin',icon:'\u0141',cat:'Layer 1',badge:'cr-b-alt',desc:'Silver to Bitcoin\'s gold. Fast payments.'},
-  {sym:'BCH/USD',name:'Bitcoin Cash',icon:'\u20BF',cat:'Layer 1',badge:'cr-b-btc',desc:'Bitcoin fork focused on payments.'},
-  {sym:'LINK/USD',name:'Chainlink',icon:'\u26D3',cat:'DeFi',badge:'cr-b-defi',desc:'Decentralized oracle network. Connects smart contracts to real-world data.'},
-  {sym:'UNI/USD',name:'Uniswap',icon:'\u{1F984}',cat:'DeFi',badge:'cr-b-defi',desc:'Largest decentralized exchange protocol.'},
-  {sym:'AAVE/USD',name:'Aave',icon:'\u{1F47B}',cat:'DeFi',badge:'cr-b-defi',desc:'DeFi lending and borrowing protocol.'},
-  {sym:'MKR/USD',name:'Maker',icon:'\u2666',cat:'DeFi',badge:'cr-b-defi',desc:'DAI stablecoin governance. DeFi blue chip.'},
-  {sym:'CRV/USD',name:'Curve',icon:'\u223C',cat:'DeFi',badge:'cr-b-defi',desc:'Stablecoin DEX. Deep liquidity for pegged assets.'},
-  {sym:'GRT/USD',name:'The Graph',icon:'\u25E2',cat:'DeFi',badge:'cr-b-defi',desc:'Indexing protocol for querying blockchain data.'},
-  {sym:'SUSHI/USD',name:'SushiSwap',icon:'\u{1F363}',cat:'DeFi',badge:'cr-b-defi',desc:'Community-driven DEX and DeFi platform.'},
-  {sym:'DOGE/USD',name:'Dogecoin',icon:'\u{1F415}',cat:'Meme',badge:'cr-b-meme',desc:'Original meme coin. Community-driven.'},
-  {sym:'SHIB/USD',name:'Shiba Inu',icon:'\u{1F436}',cat:'Meme',badge:'cr-b-meme',desc:'Ethereum-based meme token with DeFi ecosystem.'},
-  {sym:'PEPE/USD',name:'Pepe',icon:'\u{1F438}',cat:'Meme',badge:'cr-b-meme',desc:'Frog-themed meme token.'},
-  {sym:'MATIC/USD',name:'Polygon',icon:'\u2B23',cat:'Layer 2',badge:'cr-b-eth',desc:'Ethereum scaling solution. Low fees.'},
-  {sym:'ARB/USD',name:'Arbitrum',icon:'\u27A1',cat:'Layer 2',badge:'cr-b-eth',desc:'Optimistic rollup L2 for Ethereum.'},
-  {sym:'OP/USD',name:'Optimism',icon:'\u{1F534}',cat:'Layer 2',badge:'cr-b-eth',desc:'Optimistic rollup with governance token.'},
-  {sym:'XLM/USD',name:'Stellar',icon:'\u2606',cat:'Payments',badge:'cr-b-alt',desc:'Cross-border payments network.'},
-  {sym:'XRP/USD',name:'Ripple',icon:'\u2716',cat:'Payments',badge:'cr-b-alt',desc:'Enterprise payment settlement network.'},
-  {sym:'XTZ/USD',name:'Tezos',icon:'\u0166',cat:'Layer 1',badge:'cr-b-alt',desc:'Self-amending blockchain with on-chain governance.'},
-  {sym:'FIL/USD',name:'Filecoin',icon:'\u2318',cat:'Infrastructure',badge:'cr-b-alt',desc:'Decentralized storage network.'},
-  {sym:'RENDER/USD',name:'Render',icon:'\u25CE',cat:'Infrastructure',badge:'cr-b-alt',desc:'Decentralized GPU rendering network.'},
-  {sym:'INJ/USD',name:'Injective',icon:'\u2A2F',cat:'DeFi',badge:'cr-b-defi',desc:'Decentralized derivatives exchange.'},
-  {sym:'TIA/USD',name:'Celestia',icon:'\u2742',cat:'Infrastructure',badge:'cr-b-alt',desc:'Modular data availability layer.'},
-  {sym:'SEI/USD',name:'Sei',icon:'\u2660',cat:'Layer 1',badge:'cr-b-alt',desc:'Fastest L1 optimized for trading.'},
-  {sym:'SUI/USD',name:'Sui',icon:'\u{1F4A7}',cat:'Layer 1',badge:'cr-b-alt',desc:'Move-based L1 with parallel execution.'},
-  {sym:'APT/USD',name:'Aptos',icon:'\u2726',cat:'Layer 1',badge:'cr-b-alt',desc:'Move-based L1. Diem successor.'},
-  {sym:'USDT/USD',name:'Tether',icon:'\u0024',cat:'Stablecoin',badge:'cr-b-stable',desc:'Largest stablecoin by market cap.'},
-  {sym:'USDC/USD',name:'USD Coin',icon:'\u0024',cat:'Stablecoin',badge:'cr-b-stable',desc:'Regulated US dollar stablecoin.'},
-  {sym:'DAI/USD',name:'Dai',icon:'\u25C8',cat:'Stablecoin',badge:'cr-b-stable',desc:'Decentralized stablecoin by MakerDAO.'},
-];
-
-var CRYPTO_CATS={
-  'All':{icon:'\u{1F30D}',filter:function(){return true;}},
-  'Layer 1':{icon:'\u{1F9F1}',filter:function(c){return c.cat==='Layer 1';}},
-  'DeFi':{icon:'\u{1F3E6}',filter:function(c){return c.cat==='DeFi';}},
-  'Layer 2':{icon:'\u26A1',filter:function(c){return c.cat==='Layer 2';}},
-  'Meme':{icon:'\u{1F680}',filter:function(c){return c.cat==='Meme';}},
-  'Infra':{icon:'\u2699',filter:function(c){return c.cat==='Infrastructure';}},
-  'Payments':{icon:'\u{1F4B8}',filter:function(c){return c.cat==='Payments';}},
-  'Stable':{icon:'\u{1F4B5}',filter:function(c){return c.cat==='Stablecoin';}}
-};
-
-var CR_PRICES={},CR_ACT_CAT='All',CR_LOADED=false;
-
-// ─── CRYPTO SUB-TABS ─────────────────────────────────────────────────────────
-function showCryptoSub(name,el){
-  ['market','crPortfolio','crWatchlist'].forEach(function(t){document.getElementById('crSub-'+t).style.display='none';});
-  document.querySelectorAll('.cr-sub-btn').forEach(function(b){b.classList.remove('active');});
-  document.getElementById('crSub-'+name).style.display='block';el.classList.add('active');
-  if(name==='crPortfolio')loadCryptoPositions();
-  if(name==='crWatchlist')renderCrWatchlist();
-}
-
-function initCryptoTab(){
-  renderCryptoCatGrid();
-  if(!CR_LOADED)loadCryptoMarket();
-}
-
-// ─── CRYPTO CATEGORY FILTER ──────────────────────────────────────────────────
-function renderCryptoCatGrid(){
-  var grid=document.getElementById('crCatGrid');if(!grid)return;
-  var cats=Object.keys(CRYPTO_CATS);
-  grid.innerHTML='<div class="cr-cat-grid">'+cats.map(function(name){
-    var c=CRYPTO_CATS[name];
-    var count=name==='All'?CRYPTO_DB.length:CRYPTO_DB.filter(c.filter).length;
-    return '<div class="cr-cat'+(CR_ACT_CAT===name?' active':'')+'" onclick="setCryptoCat(\''+name+'\')">'
-      +'<div class="cr-cat-ic">'+c.icon+'</div>'
-      +'<div class="cr-cat-nm">'+name+'</div>'
-      +'<div class="cr-cat-ct">'+count+' coins</div></div>';
-  }).join('')+'</div>';
-}
-
-function setCryptoCat(name){
-  CR_ACT_CAT=name;
-  renderCryptoCatGrid();
-  renderCryptoCards();
-}
-
-// ─── CRYPTO MARKET ───────────────────────────────────────────────────────────
-function cryptoAlpacaSym(sym){return sym.replace('/','');}
-
-function loadCryptoMarket(){
-  var out=document.getElementById('cryptoOut');
-  out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Loading crypto prices...</div></div>';
-
-  // Alpaca crypto pricing via latest trades
-  var syms=CRYPTO_DB.map(function(c){return cryptoAlpacaSym(c.sym);}).join(',');
-  var url=base()+'/v1beta3/crypto/us/latest/trades?symbols='+syms;
-  fetch(url,{headers:hdrs()}).then(function(r){return r.json();}).then(function(d){
-    if(d&&d.trades){
-      Object.keys(d.trades).forEach(function(k){
-        CR_PRICES[k]={price:d.trades[k].p||0,size:d.trades[k].s||0};
-      });
-    }
-    CR_LOADED=true;
-    renderCryptoCards();
-  }).catch(function(e){
-    // Fallback: try bars endpoint
-    var barsUrl=base()+'/v1beta3/crypto/us/latest/bars?symbols='+syms;
-    fetch(barsUrl,{headers:hdrs()}).then(function(r){return r.json();}).then(function(d){
-      if(d&&d.bars){
-        Object.keys(d.bars).forEach(function(k){
-          CR_PRICES[k]={price:d.bars[k].c||0,size:0};
-        });
-      }
-      CR_LOADED=true;
-      renderCryptoCards();
-    }).catch(function(e2){
-      out.innerHTML='<div class="empty">Failed to load crypto prices.'+(CONNECTED?'':' Connect your Alpaca account first.')+'<br><span style="font-size:12px;color:var(--tx4)">'+(e2.message||e.message||'')+'</span></div>';
-    });
-  });
-}
-
-function renderCryptoCards(){
-  var out=document.getElementById('cryptoOut');
-  var filtered=CRYPTO_DB.filter(CRYPTO_CATS[CR_ACT_CAT].filter);
-  var bMode=MODE==='paper';
-
-  if(!filtered.length){out.innerHTML='<div class="empty">No coins in this category</div>';return;}
-
-  out.innerHTML=filtered.map(function(c){
-    var key=cryptoAlpacaSym(c.sym);
-    var pd=CR_PRICES[key];
-    var price=pd?pd.price:0;
-    var displaySym=c.sym.replace('/USD','');
-    var fPrice=price>=1?f$(price):'$'+price.toFixed(price>=0.01?4:8);
-
-    return '<div class="cr-card">'
-      +'<div class="cr-top"><div>'
-      +'<div class="cr-sym"><span class="cr-icon">'+c.icon+'</span>'+displaySym+'</div>'
-      +'<div class="cr-nm">'+c.name+'</div>'
-      +'</div><div class="cr-rt">'
-      +'<div class="cr-pr">'+(price?fPrice:'--')+'</div>'
-      +'<span class="cr-badge '+c.badge+'">'+c.cat+'</span>'
-      +'</div></div>'
-      +'<div style="font-size:12px;color:var(--tx3);margin-bottom:12px;line-height:1.5">'+c.desc+'</div>'
-      +'<div class="cr-acts">'
-      +'<button class="cr-buy'+(bMode?' paper':'')+'" onclick="buyCrypto(\''+c.sym+'\',this)" '+(CONNECTED?'':'disabled')+'>Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
-      +'<button class="cr-wl-btn" onclick="addToCrWL(\''+displaySym+'\')">+ Watchlist</button>'
-      +'<a href="https://www.coingecko.com/en/coins/'+c.name.toLowerCase().replace(/\s+/g,'-')+'" target="_blank" class="cr-wl-btn" style="text-decoration:none;font-size:11px">Chart &#8599;</a>'
-      +'</div></div>';
-  }).join('');
-}
-
-// ─── CRYPTO TRADING ──────────────────────────────────────────────────────────
-function buyCrypto(sym,btnEl){
-  if(!CONNECTED){showToast('Connect your Alpaca account first','err');return;}
-  var orig=btnEl.textContent;btnEl.disabled=true;btnEl.textContent='Placing...';
-
-  var key=cryptoAlpacaSym(sym);
-  var body={symbol:key,notional:ORDER_AMT.toFixed(2),side:'buy',type:'market',time_in_force:'gtc'};
-
-  alpaca('/v2/orders',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){
-    if(d.code||!d.id) throw new Error(d.message||'Order rejected');
-    showToast('$'+ORDER_AMT+' of '+sym.replace('/USD','')+' ordered!'+(MODE==='paper'?' (paper)':''),'ok');
-    btnEl.textContent='Done!';setTimeout(function(){btnEl.textContent=orig;btnEl.disabled=false;},3000);
-    refreshAcctQuick();
-  }).catch(function(e){
-    showToast('Order failed: '+(e.message||'Try again'),'err');
-    btnEl.textContent=orig;btnEl.disabled=false;
-  });
-}
-
-function sellCrypto(sym,qty,btnEl,full){
-  if(!CONNECTED){showToast('Connect your Alpaca account first','err');return;}
-  var orig=btnEl.textContent;btnEl.disabled=true;btnEl.textContent='Selling...';
-  var inputAmt=parseFloat((document.getElementById('csi-'+sym)||{}).value)||ORDER_AMT;
-  var body=full
-    ?{symbol:sym,qty:String(qty),side:'sell',type:'market',time_in_force:'gtc'}
-    :{symbol:sym,notional:inputAmt.toFixed(2),side:'sell',type:'market',time_in_force:'gtc'};
-
-  alpaca('/v2/orders',{method:'POST',body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){
-    if(d.code||!d.id) throw new Error(d.message||'Sell rejected');
-    showToast('Sell order placed for '+sym+(full?' (all)':''),'ok');
-    btnEl.textContent='Sold!';setTimeout(function(){loadCryptoPositions();},2500);refreshAcctQuick();
-  }).catch(function(e){showToast('Sell failed: '+(e.message||'Try again'),'err');btnEl.textContent=orig;btnEl.disabled=false;});
-}
-
-// ─── CRYPTO PORTFOLIO ────────────────────────────────────────────────────────
-function loadCryptoPositions(){
-  var out=document.getElementById('crPortfolioOut');
-  if(!CONNECTED){out.innerHTML='<div class="empty">Connect your Alpaca account to view crypto positions</div>';return;}
-  out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Loading crypto positions...</div></div>';
-
-  alpaca('/v2/positions').then(function(r){return r.json();}).then(function(positions){
-    if(!Array.isArray(positions)){throw new Error('Bad response');}
-    // Filter crypto positions (asset_class === 'crypto')
-    var crypto=positions.filter(function(p){return p.asset_class==='crypto';});
-    if(!crypto.length){out.innerHTML='<div class="empty">No crypto positions. Buy some crypto from the Market tab!</div>';return;}
-
-    var tMV=crypto.reduce(function(s,p){return s+parseFloat(p.market_value||0);},0);
-    var tPL=crypto.reduce(function(s,p){return s+parseFloat(p.unrealized_pl||0);},0);
-
-    var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem">'
-      +'<div class="astat"><div class="aval">'+f$(tMV)+'</div><div class="albl">Crypto Value</div></div>'
-      +'<div class="astat"><div class="aval" style="color:'+(tPL>=0?'#2e7d32':'#c62828')+'">'+(tPL>=0?'+':'')+f$(tPL)+'</div><div class="albl">Unrealized P&amp;L</div></div>'
-      +'</div>';
-
-    html+=crypto.map(function(p){
-      var mv=parseFloat(p.market_value||0),pl=parseFloat(p.unrealized_pl||0),plpc=parseFloat(p.unrealized_plpc||0)*100;
-      var cp=parseFloat(p.current_price||0),ap=parseFloat(p.avg_entry_price||0),qty=parseFloat(p.qty||0);
-      var isUp=pl>=0;
-      var fCp=cp>=1?f$(cp):'$'+cp.toFixed(cp>=0.01?4:8);
-      var fAp=ap>=1?f$(ap):'$'+ap.toFixed(ap>=0.01?4:8);
-      var dbCoin=CRYPTO_DB.find(function(c){return cryptoAlpacaSym(c.sym)===p.symbol;});
-      var coinName=dbCoin?dbCoin.name:p.symbol;
-      var coinIcon=dbCoin?dbCoin.icon:'\u{1F4B0}';
-
-      return '<div class="cr-pos"><div class="cr-pos-top"><div>'
-        +'<div class="cr-pos-sym">'+coinIcon+' '+p.symbol.replace('USD','')+'</div>'
-        +'<div class="cr-pos-nm">'+coinName+'</div></div>'
-        +'<div style="text-align:right"><div class="cr-pos-val">'+f$(mv)+'</div>'
-        +'<div class="cr-pos-pl '+(isUp?'up':'dn')+'">'+(isUp?'+':'')+f$(pl)+' ('+fPct(plpc)+')</div></div></div>'
-        +'<div class="pos-mt"><div class="pm"><div class="pm-v">'+fCp+'</div><div class="pm-l">Current</div></div>'
-        +'<div class="pm"><div class="pm-v">'+fAp+'</div><div class="pm-l">Avg Cost</div></div>'
-        +'<div class="pm"><div class="pm-v">'+qty.toFixed(6)+'</div><div class="pm-l">Qty</div></div></div>'
-        +'<div class="sl-row" style="margin-top:10px">'
-        +'<input class="sl-in" id="csi-'+p.symbol+'" type="number" value="'+ORDER_AMT+'" min="1"/>'
-        +'<button class="sp-btn" onclick="sellCrypto(\''+p.symbol+'\','+qty+',this,false)">Sell $</button>'
-        +'<button class="sf-btn" onclick="sellCrypto(\''+p.symbol+'\','+qty+',this,true)">Sell All</button></div></div>';
-    }).join('');
-
-    out.innerHTML=html;
-  }).catch(function(e){out.innerHTML='<div class="empty">Failed: '+(e.message||'Check connection')+'</div>';});
-}
-
-// ─── CRYPTO WATCHLIST ────────────────────────────────────────────────────────
-function getCrWL(){return JSON.parse(localStorage.getItem('psp_cr_wl')||'[]');}
-function addToCrWL(ticker){
-  var t=(ticker||'').trim().toUpperCase().replace('/USD','');if(!t){showToast('Enter a crypto symbol','err');return;}
-  var wl=getCrWL();if(wl.includes(t)){showToast(t+' already in crypto watchlist','err');return;}
-  // Validate it's in our DB
-  var found=CRYPTO_DB.find(function(c){return c.sym.replace('/USD','')===t;});
-  if(!found){showToast(t+' not found in supported crypto list','err');return;}
-  wl.push(t);localStorage.setItem('psp_cr_wl',JSON.stringify(wl));
-  var inp=document.getElementById('crWlInput');if(inp)inp.value='';
-  renderCrWatchlist();
-  showToast(t+' added to crypto watchlist','ok');
-}
-function removeFromCrWL(ticker){localStorage.setItem('psp_cr_wl',JSON.stringify(getCrWL().filter(function(t){return t!==ticker;})));renderCrWatchlist();}
-
-function renderCrWatchlist(){
-  var out=document.getElementById('crWatchlistOut');if(!out)return;
-  var wl=getCrWL();
-  var bMode=MODE==='paper';
-
-  if(!wl.length){
-    out.innerHTML='<div class="empty" style="padding:1.5rem">Add crypto above to track them here</div>';
-    return;
-  }
-
-  // Fetch prices for watchlist coins via Alpaca
-  var syms=wl.map(function(t){return t+'USD';}).join(',');
-  var url=base()+'/v1beta3/crypto/us/latest/trades?symbols='+syms;
-
-  fetch(url,{headers:hdrs()}).then(function(r){return r.json();}).then(function(d){
-    var prices={};
-    if(d&&d.trades){
-      Object.keys(d.trades).forEach(function(k){
-        prices[k.replace('USD','')]={price:d.trades[k].p||0};
-      });
-    }
-
-    out.innerHTML=wl.map(function(sym){
-      var pd=prices[sym];
-      var dbCoin=CRYPTO_DB.find(function(c){return c.sym.replace('/USD','')===sym;});
-      var name=dbCoin?dbCoin.name:sym;
-      var icon=dbCoin?dbCoin.icon:'\u{1F4B0}';
-      var price=pd?pd.price:0;
-      var fPrice=price>=1?f$(price):price>0?'$'+price.toFixed(price>=0.01?4:8):'--';
-
-      return '<div class="cr-wl-it">'
-        +'<div style="font-size:18px">'+icon+'</div>'
-        +'<div class="cr-wl-tk">'+sym+'</div>'
-        +'<div class="cr-wl-inf">'
-        +'<div class="cr-wl-pr">'+fPrice+'</div>'
-        +'<div style="font-size:11px;color:var(--tx4)">'+name+'</div>'
-        +'</div>'
-        +'<div class="cr-wl-acts">'
-        +'<button class="wl-btn wl-buy'+(bMode?' paper':'')+'" onclick="buyCrypto(\''+sym+'/USD\',this)" '+(CONNECTED?'':'disabled')+'>Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
-        +'<a href="https://www.coingecko.com/en/coins/'+name.toLowerCase().replace(/\s+/g,'-')+'" target="_blank" class="wl-btn" style="text-decoration:none">Chart</a>'
-        +'<button class="wl-btn wl-rm" onclick="removeFromCrWL(\''+sym+'\')">&#215;</button>'
-        +'</div></div>';
-    }).join('');
-  }).catch(function(){
-    out.innerHTML=wl.map(function(sym){
-      var dbCoin=CRYPTO_DB.find(function(c){return c.sym.replace('/USD','')===sym;});
-      var name=dbCoin?dbCoin.name:sym;
-      return '<div class="cr-wl-it"><div class="cr-wl-tk">'+sym+'</div><div class="cr-wl-inf"><div class="cr-wl-pr" style="color:var(--tx4)">--</div><div style="font-size:11px;color:var(--tx4)">'+name+'</div></div>'
-        +'<div class="cr-wl-acts"><button class="wl-btn wl-rm" onclick="removeFromCrWL(\''+sym+'\')">&#215;</button></div></div>';
-    }).join('');
   });
 }
 
