@@ -551,19 +551,322 @@ function renderWatchlist(){
     :Promise.resolve({});
   pricesP.then(function(d){
     var prices={};(d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){prices[q.symbol]={price:q.regularMarketPrice,change:q.regularMarketChangePercent||0};LIVE_PRICES[q.symbol]=q.regularMarketPrice;});
-    var bMode=MODE==='paper';
-    var wlHTML=wl.length?wl.map(function(sym){
-      var pd=prices[sym];var isUp=(pd&&pd.change||0)>=0;var symAlerts=alerts.filter(function(a){return a.ticker===sym&&!a.triggered;});
-      return '<div class="wl-it"><div class="wl-tk">'+sym+'</div><div class="wl-inf">'
-        +(pd?'<div class="wl-pr">'+f$(pd.price)+'</div><div class="wl-ch '+(isUp?'up':'dn')+'">'+(isUp?'+':'')+pd.change.toFixed(2)+'%</div>':'<div class="wl-pr" style="color:var(--tx4)">loading...</div>')
-        +(symAlerts.length?'<div style="font-size:11px;color:#e65100;margin-top:2px">&#128276; '+symAlerts.length+' alert'+(symAlerts.length>1?'s':'')+'</div>':'')
-        +'</div><div class="wl-acts">'
-        +'<button class="wl-btn" onclick="openAlertPanel(\''+sym+'\')">+ Alert</button>'
-        +'<a href="https://finance.yahoo.com/news/?symbols='+sym+'" target="_blank" class="wl-btn" style="text-decoration:none">&#128240;</a>'
-        +'<button class="wl-btn wl-buy'+(bMode?' paper':'')+'" onclick="buyStock(\''+sym+'\',this)">Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
-        +'<button class="wl-btn wl-rm" onclick="removeFromWL(\''+sym+'\')">&#215;</button>'
-        +'</div></div>';
-    }).join(''):'<div class="empty" style="padding:1.5rem">Add stocks above to track them here</div>';
+    var wlHTML=wl.length?
+      '<div class="table-wrap"><table class="wl-table"><thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Alerts</th><th>Actions</th></tr></thead><tbody>'
+      +wl.map(function(sym){
+        var pd=prices[sym];var isUp=(pd&&pd.change||0)>=0;var symAlerts=alerts.filter(function(a){return a.ticker===sym&&!a.triggered;});
+        return '<tr>'
+          +'<td><div class="wl-sym">'+sym+'</div></td>'
+          +'<td style="font-weight:700">'+(pd?f$(pd.price):'--')+'</td>'
+          +'<td class="'+(pd?(isUp?'up':'dn'):'')+'" style="font-weight:600">'+(pd?(isUp?'+':'')+pd.change.toFixed(2)+'%':'--')+'</td>'
+          +'<td style="font-size:11px;color:'+(symAlerts.length?'#f6ad37':'var(--tx3)')+'">'+(symAlerts.length?'&#128276; '+symAlerts.length:'--')+'</td>'
+          +'<td><div class="wl-acts">'
+          +'<button class="wl-btn" onclick="openAlertPanel(\''+sym+'\')">+ Alert</button>'
+          +'<a href="https://finance.yahoo.com/news/?symbols='+sym+'" target="_blank" class="wl-btn" style="text-decoration:none">News</a>'
+          +'<button class="wl-btn wl-buy'+(bMode?' paper':'')+'" onclick="buyStock(\''+sym+'\',this)">Buy 
+
+    var alertsHTML=alerts.length?alerts.map(function(a){
+      return '<div class="al-row"><span style="font-size:16px">'+(a.triggered?'&#9989;':'&#128276;')+'</span>'
+        +'<span class="al-inf" '+(a.triggered?'style="opacity:.5;text-decoration:line-through"':'')+'><strong>'+a.ticker+'</strong> '+a.type+' '+f$(a.price)+(a.triggered?' -- triggered':'')+'</span>'
+        +'<button class="al-del" onclick="removeAlert('+a.id+')" title="Remove">&#215;</button></div>';
+    }).join(''):'<div style="font-size:12px;color:var(--tx4);padding:.5rem 0">No alerts set. Click "+ Alert" on any watchlist stock.</div>';
+
+    var today=new Date();today.setHours(0,0,0,0);
+    var earningsHTML=Object.entries(EARNINGS).filter(function(e){return new Date(e[1])>=today;}).sort(function(a,b){return new Date(a[1])-new Date(b[1]);}).map(function(e){
+      var sym=e[0],dt=new Date(e[1]);dt.setHours(0,0,0,0);
+      var days=Math.round((dt-today)/86400000);
+      var dayLbl=days===0?'Today!':days===1?'Tomorrow':'In '+days+' days';
+      var dayCls=days===0?'earn-to':days<=7?'earn-so':'earn-ok';
+      return '<div class="earn-c"><div><div class="earn-sy">'+sym+'</div><div class="earn-co">'+(DB.find(function(s){return s.ticker===sym;})||{}).company||''+'</div></div>'
+        +'<div><div class="earn-dv">'+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div><div class="earn-dy '+dayCls+'">'+dayLbl+'</div></div></div>';
+    }).join('');
+
+    out.innerHTML='<div class="wl-add"><input id="wlInput" class="wl-inp" type="text" placeholder="Add ticker e.g. AAPL" maxlength="6" onkeydown="if(event.key===\'Enter\')addToWL(this.value)"/><button class="wl-add-btn" onclick="addToWL(document.getElementById(\'wlInput\').value)">Add</button></div>'
+      +'<div class="al-pan" id="alertPanel"></div>'
+      +wlHTML
+      +'<div style="margin-top:20px"><div style="font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Price Alerts <span style="font-size:10px;font-weight:400;text-transform:none;color:var(--tx3)">Notifies while tab is open</span></div>'
+      +alertsHTML+'</div>'
+      +'<div style="margin-top:20px"><div style="font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Earnings Calendar</div>'
+      +'<div class="earn-grid">'
+      +(earningsHTML||'<div style="font-size:12px;color:var(--tx3)">No upcoming earnings</div>')
+      +'</div></div>';
+  });
+}
+function openAlertPanel(ticker){
+  var panel=document.getElementById('alertPanel');
+  var isOpen=panel.classList.contains('open')&&panel.dataset.for===ticker;
+  panel.classList.toggle('open',!isOpen);panel.dataset.for=ticker;
+  if(!isOpen){
+    panel.innerHTML='<div class="al-t">&#128276; Set price alert for <strong>'+ticker+'</strong></div>'
+      +'<div class="al-form"><select id="alertType"><option value="above">Price goes above</option><option value="below">Price goes below</option></select>'
+      +'<input type="number" id="alertPrice" placeholder="e.g. 150" step="0.01" min="0.01"/>'
+      +'<button class="al-set" onclick="addAlert(\''+ticker+'\',document.getElementById(\'alertPrice\').value,document.getElementById(\'alertType\').value)">Set Alert</button>'
+      +'<button class="al-cn" onclick="document.getElementById(\'alertPanel\').classList.remove(\'open\')">Cancel</button></div>';
+  }
+}
+
+// ─── SECTOR EXPLORER ──────────────────────────────────────────────────────────
+function getStockData(ticker,sec){
+  var fromDB=ALL_STOCKS.find(function(s){return s.ticker===ticker;});
+  if(fromDB) return fromDB;
+  return Object.assign({ticker:ticker},sec.stockData&&sec.stockData[ticker]||{company:ticker,rating:'Listed',bear:-20,base:20,bull:60,pol:[],bil:[],inst:[],insider:[],options:[],retail:[],why:'Research this stock using the links below.'});
+}
+function sectorMomentum(sec){
+  var all=sec.stocks.concat(sec.gems).map(function(tk){var sd=getStockData(tk,sec);return sd.base||0;});
+  return Math.round(all.reduce(function(s,v){return s+v;},0)/(all.length||1));
+}
+function renderSectorGrid(){
+  var out=document.getElementById('sectorsOut');
+  var moms=Object.keys(SECTORS).map(function(n){return {n:n,s:SECTORS[n],m:sectorMomentum(SECTORS[n])};}).sort(function(a,b){return b.m-a.m;});
+  var maxM=Math.max.apply(null,moms.map(function(x){return x.m;}));maxM=maxM||1;
+  var scr='<div class="scr-bar"><label>Rating:</label><select id="scRating" onchange="applyScreener()"><option value="">All</option><option>Strong Buy</option><option>Moderate Buy</option><option>Speculative Buy</option></select>'
+    +'<label>Min conviction:</label><input id="scConv" type="number" placeholder="0" min="0" max="100" style="width:60px" oninput="applyScreener()"/>'
+    +'<label>Signal:</label><select id="scSig" onchange="applyScreener()"><option value="">Any</option>'+Object.keys(SIG).map(function(k){return '<option value="'+k+'">'+SIG[k].l+'</option>';}).join('')+'</select></div>';
+  var cards=moms.map(function(x,i){
+    var n=x.n,s=x.s,m=x.m;var topK=i===0?'&#128293; ':i===1?'&#11014;&#65039; ':'';
+    return '<div class="sec-c" id="sc-'+n.replace(/\W/g,'_')+'" onclick="openSector(\''+n+'\')">'
+      +'<div class="sc-ic">'+s.icon+'</div><div class="sc-nm">'+topK+n+'</div>'
+      +'<div class="sc-mt">'+s.stocks.length+' stocks &middot; '+s.gems.length+' gems &middot; avg +'+m+'% base</div>'
+      +'<span class="badge '+s.cls+' nc" style="font-size:10px">'+s.stocks.slice(0,3).join(' &middot; ')+'</span>'
+      +'<div class="rot-bg"><div class="rot-fill" style="width:'+(m/maxM*100).toFixed(0)+'%"></div></div>'
+      +'</div>';
+  }).join('');
+  out.innerHTML=scr+'<div class="lbl" style="margin-bottom:.75rem">Sector rotation -- ranked by avg base-case ROI</div><div class="sec-grid">'+cards+'</div><div id="sectorDetail"></div>';
+}
+function applyScreener(){
+  SCREENER.rating=(document.getElementById('scRating')||{}).value||'';
+  SCREENER.conv=parseInt((document.getElementById('scConv')||{}).value)||0;
+  SCREENER.sig=(document.getElementById('scSig')||{}).value||'';
+  if(ACT_SECTOR) renderSectorDetail(ACT_SECTOR);
+}
+function stockPass(s){
+  if(SCREENER.rating&&s.rating!==SCREENER.rating) return false;
+  if(SCREENER.conv&&convScore(s)<SCREENER.conv) return false;
+  if(SCREENER.sig&&!(s[SCREENER.sig]&&s[SCREENER.sig].length)) return false;
+  return true;
+}
+function openSector(name){
+  ACT_SECTOR=name;ACT_FILTER='all';
+  document.querySelectorAll('.sec-c').forEach(function(c){c.classList.remove('active');});
+  var el=document.getElementById('sc-'+name.replace(/\W/g,'_'));if(el)el.classList.add('active');
+  renderSectorDetail(name);
+  setTimeout(function(){var el2=document.getElementById('sectorDetail');if(el2)el2.scrollIntoView({behavior:'smooth',block:'start'});},50);
+}
+function closeSectorDetail(){
+  var el=document.getElementById('sectorDetail');if(el)el.innerHTML='';
+  document.querySelectorAll('.sec-c').forEach(function(c){c.classList.remove('active');});
+  ACT_SECTOR=null;
+}
+function ssRow(s,isGem){
+  var rCls=s.rating==='Strong Buy'?'b-green':s.rating==='Moderate Buy'?'b-amber':'b-gray';
+  var cv=convScore(s);var cvCls=cv>=80?'cv-hi':cv>=60?'cv-go':cv>=40?'cv-md':'cv-lo';
+  var bMode=MODE==='paper';
+  return '<div class="ss-rw'+(isGem?' gem-rw':'')+'">'+( isGem?'<div class="gem-lb">&#11088; Hidden Gem</div>':'')
+    +'<div class="ss-top"><div><div class="ss-sy">'+s.ticker+'</div><div class="ss-co">'+(s.company||s.ticker)+'</div></div>'
+    +'<div class="ss-rt"><span class="ss-ra badge '+rCls+' nc">'+s.rating+'</span><div class="ss-bs">'+pct(s.base||0)+' base</div></div></div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="cv '+cvCls+'" style="font-size:11px">&#9889; '+cv+'</span>'
+    +'<a href="https://finance.yahoo.com/news/?symbols='+s.ticker+'" target="_blank" class="nws">&#128240; News</a></div>'
+    +'<div class="sigs">'+sigChips(s)+'</div>'
+    +'<div class="ss-prd"><div class="ss-p bear">Bear '+pct(s.bear||0)+'</div><div class="ss-p base">Base '+pct(s.base||0)+'</div><div class="ss-p bull">Bull +'+(s.bull||0)+'%</div></div>'
+    +'<div class="ss-wh">'+(s.why||'')+'</div>'
+    +'<button class="'+sCls()+'" onclick="buyStock(\''+s.ticker+'\',this)" '+(CONNECTED?'':'disabled')+'>Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button></div>';
+}
+function renderSectorDetail(name){
+  var sec=SECTORS[name];
+  var FKEYS=['all','pol','bil','inst','insider','options','retail','multi'];
+  var FLBLS=['All','&#127963; Pol','&#128142; Bil','&#127970; Inst','&#128084; Insider','&#128202; Options','&#128241; Retail','3+ signals'];
+  var fBtns=FKEYS.map(function(k,i){return '<button class="sig-btn'+(ACT_FILTER===k?' active':'')+'" onclick="ACT_FILTER=\''+k+'\';renderSectorDetail(\''+name+'\')">'+FLBLS[i]+'</button>';}).join('');
+  function sigF(s){if(ACT_FILTER==='all')return true;if(ACT_FILTER==='multi')return Object.keys(SIG).filter(function(k){return s[k]&&s[k].length;}).length>=3;return s[ACT_FILTER]&&s[ACT_FILTER].length>0;}
+  function score(s){return convScore(s)+(s.rating==='Strong Buy'?20:s.rating==='Moderate Buy'?10:0)+(s.base||0)/5;}
+  var stocks=sec.stocks.map(function(tk){return getStockData(tk,sec);}).filter(function(s){return stockPass(s)&&sigF(s);}).sort(function(a,b){return score(b)-score(a);});
+  var gems=sec.gems.map(function(tk){return getStockData(tk,sec);}).filter(function(s){return stockPass(s)&&sigF(s);}).sort(function(a,b){return score(b)-score(a);});
+  document.getElementById('sectorDetail').innerHTML='<div class="sec-det"><div class="sd-hdr"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">'+sec.icon+'</span><div class="sd-t">'+name+'</div></div><button class="sd-cl" onclick="closeSectorDetail()">&#215; Close</button></div>'
+    +'<div class="sig-fs">'+fBtns+'</div>'
+    +(stocks.length?stocks.map(function(s){return ssRow(s,false);}).join(''):'<div class="empty" style="padding:1rem">No stocks match this filter</div>')
+    +(gems.length?'<div class="sec-dv">&#11088; Hidden Gems in '+name+'</div>'+gems.map(function(g){return ssRow(g,true);}).join(''):'')
+    +'</div>';
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openSectorModal(sectorName){
+  var sec=SECTORS[sectorName];if(!sec)return;
+  document.getElementById('moT').textContent=sec.icon+' '+sectorName;
+  document.getElementById('moS').textContent=sec.stocks.length+' stocks \u00b7 '+sec.gems.length+' hidden gems';
+  document.getElementById('moB').innerHTML=sec.stocks.map(function(tk){return ssRow(getStockData(tk,sec),false);}).join('')
+    +(sec.gems.length?'<div class="sec-dv">&#11088; Hidden Gems</div>'+sec.gems.map(function(tk){return ssRow(getStockData(tk,sec),true);}).join(''):'');
+  document.getElementById('modalOv').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOv').classList.remove('open');}
+function maybeClose(e){if(e.target===document.getElementById('modalOv'))closeModal();}
+
+// ─── SEARCH AUTOCOMPLETE ──────────────────────────────────────────────────────
+var srchFocusIdx=-1;
+function onSearchInput(inp){
+  var val=(inp.value||'').trim();
+  if(val.length<1){closeSearchDrop();return;}
+  var upper=val.toUpperCase();
+  var lower=val.toLowerCase();
+  var results=SEARCH_DB.filter(function(s){
+    if(s.t.startsWith(upper)) return true;
+    var words=s.n.toLowerCase().split(' ');
+    return words.some(function(w){return w.startsWith(lower);});
+  }).slice(0,9);
+  if(!results.length){closeSearchDrop();return;}
+  var drop=document.getElementById('srchDrop');
+  if(!drop) return;
+  drop.innerHTML=results.map(function(s,i){
+    var tHL=s.t.toUpperCase().startsWith(upper)?'<strong>'+s.t.slice(0,upper.length)+'</strong>'+s.t.slice(upper.length):s.t;
+    var nHL=s.n;
+    return '<div class="srch-item" data-idx="'+i+'" onclick="selectStock(\''+s.t+'\')" onmouseover="srchFocusIdx='+i+';updateFocus()">'
+      +'<span class="srch-tk">'+tHL+'</span>'
+      +'<span class="srch-nm">'+nHL+'</span>'
+      +'<span class="srch-sc">'+s.s+'</span>'
+      +'</div>';
+  }).join('');
+  drop.classList.add('open');
+  srchFocusIdx=-1;
+}
+function onSearchKey(e){
+  var drop=document.getElementById('srchDrop');
+  if(!drop||!drop.classList.contains('open')){if(e.key==='Enter')searchStock();return;}
+  var items=drop.querySelectorAll('.srch-item');
+  if(e.key==='ArrowDown'){e.preventDefault();srchFocusIdx=Math.min(srchFocusIdx+1,items.length-1);updateFocus();}
+  else if(e.key==='ArrowUp'){e.preventDefault();srchFocusIdx=Math.max(srchFocusIdx-1,-1);updateFocus();}
+  else if(e.key==='Enter'){e.preventDefault();if(srchFocusIdx>=0&&items[srchFocusIdx]){items[srchFocusIdx].click();}else{closeSearchDrop();searchStock();}}
+  else if(e.key==='Escape'){closeSearchDrop();}
+}
+function updateFocus(){
+  var drop=document.getElementById('srchDrop');if(!drop) return;
+  var items=drop.querySelectorAll('.srch-item');
+  Array.prototype.forEach.call(items,function(it,i){
+    it.classList.toggle('focused',i===srchFocusIdx);
+    if(i===srchFocusIdx) it.scrollIntoView({block:'nearest'});
+  });
+}
+function closeSearchDrop(){
+  var drop=document.getElementById('srchDrop');
+  if(drop){drop.classList.remove('open');drop.innerHTML='';}
+  srchFocusIdx=-1;
+}
+function selectStock(ticker){
+  var inp=document.getElementById('srchIn');if(inp) inp.value=ticker;
+  closeSearchDrop();searchStock();
+}
+// close dropdown when clicking outside
+document.addEventListener('click',function(e){if(!e.target.closest('.srch-wrap'))closeSearchDrop();});
+
+// ─── SEARCH ───────────────────────────────────────────────────────────────────
+function fmtCap(v){if(v>=1e12)return '$'+(v/1e12).toFixed(2)+'T';if(v>=1e9)return '$'+(v/1e9).toFixed(1)+'B';if(v>=1e6)return '$'+(v/1e6).toFixed(1)+'M';return '$'+v.toLocaleString();}
+function searchStock(){
+  var raw=((document.getElementById('srchIn')||{}).value||'').trim();
+  var lower=raw.toLowerCase();
+  // resolve company name to ticker
+  var fromDB=SEARCH_DB.find(function(s){return s.n.toLowerCase()===lower||s.t.toLowerCase()===lower;});
+  var ticker=(fromDB?fromDB.t:raw).toUpperCase();
+  if(!ticker){showToast('Enter a company name or ticker symbol','err');return;}
+  closeSearchDrop();
+  out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Looking up '+ticker+'...</div></div>';
+  fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ticker)).then(function(r){return r.json();}).then(function(d){
+    var q=(d&&d.quoteResponse&&d.quoteResponse.result||[])[0];
+    if(!q||!q.regularMarketPrice){out.innerHTML='<div class="empty">No results for "'+ticker+'" -- check the symbol and try again</div>';return;}
+    LIVE_PRICES[q.symbol]=q.regularMarketPrice;
+    var dbStock=ALL_STOCKS.find(function(s){return s.ticker===q.symbol;});
+    var price=q.regularMarketPrice||0;var chg=q.regularMarketChangePercent||0;var isUp=chg>=0;var bMode=MODE==='paper';
+    var dbSection=dbStock?
+      '<div style="margin-bottom:8px">'+convBadge(dbStock)+'</div><div class="sigs" style="margin:0 0 4px">'+sigChips(dbStock)+'</div>'+whosBuying(dbStock,false):
+      '<div style="padding:10px 12px;background:var(--sf2);border-radius:10px;font-size:12px;color:var(--tx3);margin:8px 0">Not in our tracked database -- buy and research links available below.</div>';
+    var buyBtns='<div style="display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap">'
+      +'<button class="'+bCls()+'" onclick="buyStock(\''+q.symbol+'\',this)">Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
+      +'<button class="refresh-btn" style="margin:0" onclick="addToWL(\''+q.symbol+'\')">+ Watchlist</button>'
+      +'<a href="https://finance.yahoo.com/news/?symbols='+q.symbol+'" target="_blank" class="nws">&#128240; News</a>'
+      +'<a href="https://finviz.com/quote.ashx?t='+q.symbol+'" target="_blank" class="nws">Finviz</a>'
+      +'</div>';
+    out.innerHTML='<div class="card"><div class="tkr" style="font-size:26px;letter-spacing:-.5px">'+q.symbol+'</div>'
+      +'<div class="co">'+(q.longName||q.shortName||q.symbol)+(q.exchangeName?' &nbsp;&middot;&nbsp; '+q.exchangeName:'')+'</div>'
+      +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px;flex-wrap:wrap"><span class="price">'+f$(price)+'</span><span style="font-size:16px;font-weight:700;color:'+(isUp?'#2e7d32':'#c62828')+'">'+(isUp?'+':'')+chg.toFixed(2)+'% today</span></div>'
+      +'<div class="srch-st"><div class="astat"><div class="aval">'+(q.marketCap?fmtCap(q.marketCap):'--')+'</div><div class="albl">Market Cap</div></div>'
+      +'<div class="astat"><div class="aval">'+(q.trailingPE?q.trailingPE.toFixed(1)+'x':'--')+'</div><div class="albl">Trailing P/E</div></div>'
+      +'<div class="astat"><div class="aval">'+(q.fiftyTwoWeekHigh?f$(q.fiftyTwoWeekHigh):'--')+'</div><div class="albl">52W High</div></div>'
+      +'<div class="astat"><div class="aval">'+(q.fiftyTwoWeekLow?f$(q.fiftyTwoWeekLow):'--')+'</div><div class="albl">52W Low</div></div></div>'
+      +dbSection+buyBtns+bracketPanel(q.symbol)+articlesHTML(q.symbol)+'</div>';
+  }).catch(function(e){out.innerHTML='<div class="empty">Search failed: '+(e.message||'Check your connection')+'</div>';});
+}
+
+// ─── PRICES + PICKS ───────────────────────────────────────────────────────────
+var STEPS=['Fetching live prices...','Scoring all signals...','Running AI models...','Finalizing picks...'];
+function fetchPrices(){
+  return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ALL_STOCKS.map(function(s){return s.ticker;}).join(','))).then(function(r){return r.json();}).then(function(d){
+    (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});if(s&&q.regularMarketPrice){s.livePrice=q.regularMarketPrice;LIVE_PRICES[q.symbol]=q.regularMarketPrice;}});
+    return true;
+  }).catch(function(){return false;});
+}
+function getDailyPick(){
+  var day=Math.floor(Date.now()/86400000);
+  return DB.map(function(s,i){return Object.assign({},s,{score:s.polScore*0.55+s.conf*0.45+(day%(i+4)===0?6:0)});}).sort(function(a,b){return b.score-a.score;});
+}
+function renderPicks(sorted,live){
+  var pick=sorted[0];var runners=sorted.slice(1,4);
+  var p=pick.livePrice||pick.fb;var today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  var allChips=(pick.pol||[]).map(function(x){return '<span class="chip">&#127963; '+x+'</span>';}).join('')+(pick.bil||[]).map(function(x){return '<span class="chip">&#128142; '+x+'</span>';}).join('');
+  var liveTag=live&&pick.livePrice?'<span class="badge b-gray nc">Live price</span>':'<span class="badge b-gray nc">Est. price</span>';
+  var bMode=MODE==='paper';
+  var runnerHTML=runners.map(function(r){var rp=r.livePrice||r.fb;return '<div class="alt" onclick="openSectorModal(\''+r.sector+'\')"><div class="alt-t">'+r.ticker+'</div><div class="alt-co">'+r.company+'</div><div class="alt-p">'+f$(rp)+(live&&r.livePrice?'':' <span style="font-size:10px;color:var(--tx4)">est.</span>')+'</div><div class="alt-w">'+r.why.split('.')[0]+'.</div></div>';}).join('');
+  var gemHTML=GEMS.map(function(g){
+    var gp=g.livePrice||g.fb;
+    return '<div class="gem"><div class="g-hdr"><div><div class="g-tk">'+g.ticker+'</div><div class="g-co">'+g.company+'</div>'
+      +'<div class="g-bgs"><span class="badge '+g.tCls+'" onclick="openSectorModal(\''+g.sector+'\')">'+g.theme+' &#8599;</span><span class="badge b-gray nc">'+g.rating+'</span></div></div>'
+      +'<div class="g-rt"><div class="g-pr">'+f$(gp)+(live&&g.livePrice?'':' <span style="font-size:10px;color:var(--tx4)">est.</span>')+'</div><div class="g-sh">$'+ORDER_AMT+' = '+((ORDER_AMT)/(gp)).toFixed(4)+' sh</div><div class="g-roi">'+pct(g.bear)+' to +'+g.bull+'%</div></div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+convBadge(g)+'<a href="https://finance.yahoo.com/news/?symbols='+g.ticker+'" target="_blank" class="nws">&#128240; News</a></div>'
+      +'<div class="sigs" style="margin-bottom:10px">'+sigChips(g)+'</div>'
+      +whosBuying(g,true)
+      +'<p class="g-why" style="margin-top:8px">'+g.why+'</p>'
+      +'<div class="lbl">AI 12-month prediction</div>'
+      +'<div class="scns"><div class="scn scn-bear"><div class="scn-nm">Bear</div><div class="scn-pct">'+pct(g.bear)+'</div><div class="scn-pb">'+g.bearP+'% likely</div><div class="pb-bg"><div class="pb" style="width:'+g.bearP+'%"></div></div></div>'
+      +'<div class="scn scn-base"><div class="scn-nm">Base &#9733;</div><div class="scn-pct">'+pct(g.base)+'</div><div class="scn-pb">'+g.baseP+'% likely</div><div class="pb-bg"><div class="pb" style="width:'+g.baseP+'%"></div></div></div>'
+      +'<div class="scn scn-bull"><div class="scn-nm">Bull</div><div class="scn-pct">+'+g.bull+'%</div><div class="scn-pb">'+g.bullP+'% likely</div><div class="pb-bg"><div class="pb" style="width:'+g.bullP+'%"></div></div></div></div>'
+      +'<div class="cat">'+g.catalyst+'</div>'
+      +'<button class="'+gCls()+'" onclick="buyStock(\''+g.ticker+'\',this)">Buy $'+ORDER_AMT+(bMode?' (Paper)':'')+'</button>'
+      +bracketPanel(g.ticker)+'</div>';
+  }).join('');
+  document.getElementById('picksOut').innerHTML='<div class="dt-b">'+today+'</div>'
+    +'<div class="card"><div class="tkr">'+pick.ticker+'</div><div class="co">'+pick.company+'</div>'
+    +'<div class="badges"><span class="badge b-green nc">'+pick.rating+'</span><span class="badge b-blue nc">Top congressional buy</span><span class="badge '+pick.sCls+'" onclick="openSectorModal(\''+pick.sector+'\')">'+pick.sector+' &#8599;</span>'+liveTag+'</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+convBadge(pick)+'<a href="https://finance.yahoo.com/news/?symbols='+pick.ticker+'" target="_blank" class="nws">&#128240; News</a></div>'
+    +'<div class="sigs" style="margin-bottom:12px">'+sigChips(pick)+'</div>'
+    +'<div class="pr"><span class="price">'+f$(p)+'</span><span class="sh">$'+ORDER_AMT+' = '+((ORDER_AMT)/(p)).toFixed(4)+' shares</span>'
+    +'<button class="'+bCls()+'" onclick="buyStock(\''+pick.ticker+'\',this)">Buy $'+ORDER_AMT+(bMode?' (Paper)':'')+'</button></div>'
+    +bracketPanel(pick.ticker)
+    +'<div class="lbl">Why this pick today</div><p class="why-t">'+pick.why+'</p>'
+    +'<div class="lbl">Confidence score</div><div class="bar-bg"><div class="bar-fill" style="width:'+pick.conf+'%"></div></div>'
+    +'<div class="cf-lbl"><span>Low</span><span style="font-weight:700;color:var(--tx)">'+pick.conf+'%</span><span>High</span></div>'
+    +'<hr class="dvd">'
+    +whosBuying(pick,false)
+    +'<div class="lbl" style="margin-top:14px">Analyst consensus</div><p class="ctx">'+pick.anaCtx+'</p>'
+    +articlesHTML(pick.ticker)+'</div>'
+    +'<div class="lbl">Runner-up picks <span style="font-size:10px;color:var(--tx4)">-- click to explore that sector</span></div>'
+    +'<div class="alt-grid">'+runnerHTML+'</div>'
+    +'<div class="sh-hdr"><div class="sh-t">Hidden gem picks</div><div class="sh-s">Under-the-radar &middot; All 6 signal types &middot; AI predictions &middot; Click sector badge to see more</div></div>'
+    +gemHTML;
+}
+function run(){
+  var btn=document.getElementById('pickBtn');btn.disabled=true;btn.textContent='Researching...';
+  var si=0;
+  document.getElementById('picksOut').innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Analyzing all signal sources</div><div class="spin-s" id="ss">'+STEPS[0]+'</div></div>';
+  var t=setInterval(function(){si=(si+1)%STEPS.length;var el=document.getElementById('ss');if(el)el.textContent=STEPS[si];},1200);
+  fetchPrices().then(function(live){
+    clearInterval(t);renderPicks(getDailyPick(),live);
+    btn.textContent='Refresh picks';btn.disabled=false;
+  });
+}
+
+// Init
+loadAB();
++ORDER_AMT+'</button>'
+          +'<button class="wl-btn wl-rm" onclick="removeFromWL(\''+sym+'\')">&#215;</button>'
+          +'</div></td>'
+          +'</tr>';
+      }).join('')+'</tbody></table></div>'
+      :'<div class="empty">Add stocks above to track them here</div>';
 
     var alertsHTML=alerts.length?alerts.map(function(a){
       return '<div class="al-row"><span style="font-size:16px">'+(a.triggered?'&#9989;':'&#128276;')+'</span>'
