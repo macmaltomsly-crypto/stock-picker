@@ -382,6 +382,18 @@ input:checked+.tg-sl:before{transform:translateX(15px)}
   .earn-grid{grid-template-columns:1fr 1fr}.srch-st{grid-template-columns:1fr 1fr}
   .sec-grid{grid-template-columns:1fr 1fr}
 }
+/* ── MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-ov.open{opacity:1;pointer-events:all}
+.modal-ov.open #modalShell{transform:translateY(0)!important}
+/* ── SC base chip ── */
+.sc{font-size:10px;padding:3px 8px;border-radius:4px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+/* ── GEM label ── */
+.gem-lbl,.gem-lb{font-size:9px;font-weight:700;color:var(--y);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+/* ── NAV CONN DOT ── */
+.nav-conn-dot{width:6px;height:6px;border-radius:50%;background:var(--tx3);display:inline-block;margin-right:5px;vertical-align:middle;transition:background .3s}
+.nav-conn-dot.on{background:var(--g);box-shadow:0 0 5px var(--g)}
+.nav-conn-dot.err{background:var(--r)}
 </style>
 </head>
 <body>
