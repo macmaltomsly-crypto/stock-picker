@@ -1136,15 +1136,101 @@ var SECTORS={
 };
 
 // ─── PICK STOCK CHART ─────────────────────────────────────────────────────────
-// Maps UI period labels → Yahoo Finance interval & range params
+// Alpaca data API — same keys as trading API, different base URL
+var ALPACA_DATA='https://data.alpaca.markets';
+
+// Maps UI period → Alpaca bars params (timeframe, days back)
+// and Yahoo fallback params (range, interval)
 var PICK_PERIOD_MAP={
-  '1D':{range:'1d',interval:'5m'},
-  '1W':{range:'5d',interval:'60m'},
-  '1M':{range:'1mo',interval:'1d'},
-  '3M':{range:'3mo',interval:'1d'},
-  'YTD':{range:'ytd',interval:'1d'},
-  '1Y':{range:'1y',interval:'1wk'}
+  '1D':{
+    alpaca:{timeframe:'5Min', daysBack:1},
+    yahoo:{range:'1d',interval:'5m'}
+  },
+  '1W':{
+    alpaca:{timeframe:'1Hour', daysBack:7},
+    yahoo:{range:'5d',interval:'60m'}
+  },
+  '1M':{
+    alpaca:{timeframe:'1Day', daysBack:31},
+    yahoo:{range:'1mo',interval:'1d'}
+  },
+  '3M':{
+    alpaca:{timeframe:'1Day', daysBack:92},
+    yahoo:{range:'3mo',interval:'1d'}
+  },
+  'YTD':{
+    alpaca:{timeframe:'1Day', daysBack:null}, // calculated at call time
+    yahoo:{range:'ytd',interval:'1d'}
+  },
+  '1Y':{
+    alpaca:{timeframe:'1Week', daysBack:366},
+    yahoo:{range:'1y',interval:'1wk'}
+  }
 };
+
+// Build ISO start date string for Alpaca
+function alpacaStartDate(daysBack){
+  if(daysBack===null){
+    // YTD — Jan 1 of current year
+    return new Date(new Date().getFullYear(),0,1).toISOString().slice(0,10);
+  }
+  var d=new Date();d.setDate(d.getDate()-daysBack);
+  return d.toISOString().slice(0,10);
+}
+
+// Fetch bars from Alpaca data API using stored keys
+function fetchAlpacaBars(ticker,period){
+  var key=document.getElementById('apiKey').value.trim();
+  var sec=document.getElementById('apiSec').value.trim();
+  if(!key||!sec) return Promise.reject(new Error('no keys'));
+  var cfg=PICK_PERIOD_MAP[period]||PICK_PERIOD_MAP['1M'];
+  var start=alpacaStartDate(cfg.alpaca.daysBack);
+  // End = today
+  var end=new Date().toISOString().slice(0,10);
+  var url=ALPACA_DATA+'/v2/stocks/'+encodeURIComponent(ticker)+'/bars'
+    +'?timeframe='+cfg.alpaca.timeframe
+    +'&start='+start
+    +'&end='+end
+    +'&limit=1000'
+    +'&adjustment=split'
+    +'&feed=iex'
+    +'&sort=asc';
+  return fetch(url,{headers:{'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':sec}})
+    .then(function(r){
+      if(!r.ok) throw new Error('alpaca '+r.status);
+      return r.json();
+    })
+    .then(function(d){
+      var bars=d.bars||[];
+      if(!bars.length) throw new Error('empty');
+      // Normalise to the same {t,c,h,l,v} shape used by the rest of the code
+      return bars.map(function(b){
+        return {
+          t:Math.floor(new Date(b.t).getTime()/1000),
+          c:b.c, h:b.h, l:b.l, v:b.v
+        };
+      });
+    });
+}
+
+// Fetch bars from Yahoo (CORS proxy) as fallback
+function fetchYahooBars(ticker,period){
+  var cfg=PICK_PERIOD_MAP[period]||PICK_PERIOD_MAP['1M'];
+  var y=cfg.yahoo;
+  var url='https://query1.finance.yahoo.com/v8/finance/chart/'+ticker
+    +'?range='+y.range+'&interval='+y.interval+'&includePrePost=false';
+  return fetch(prx(url)).then(function(r){return r.json();}).then(function(d){
+    var result=d&&d.chart&&d.chart.result&&d.chart.result[0];
+    if(!result) throw new Error('no yahoo data');
+    var ts=result.timestamp||[];
+    var q0=(result.indicators&&result.indicators.quote&&result.indicators.quote[0])||{};
+    var pairs=ts.map(function(t,i){
+      return {t:t,c:q0.close[i],h:q0.high[i],l:q0.low[i],v:q0.volume[i]};
+    }).filter(function(x){return x.c!=null;});
+    if(!pairs.length) throw new Error('empty yahoo');
+    return pairs;
+  });
+}
 
 // ─── CHART CACHE HELPERS ──────────────────────────────────────────────────────
 function chartCacheKey(ticker,period){return 'psp_chart_'+ticker+'_'+period;}
@@ -1290,63 +1376,51 @@ function drawPickChart(canvas,pairs,period,fromCache,cacheAge){
   });
 }
 
-// ─── LOAD PICK CHART (fetch → cache → render) ────────────────────────────────
+// ─── LOAD PICK CHART (Alpaca → Yahoo → cache) ────────────────────────────────
 function loadPickChart(ticker,period){
   PICK_CHART_TICKER=ticker;
   PICK_CHART_PERIOD=period||'1M';
   var canvas=document.getElementById('pickChart');
   if(!canvas) return;
 
-  // Sync active button
+  // Sync active period button
   document.querySelectorAll('.pc-btn').forEach(function(b){
     b.classList.toggle('active',b.dataset.p===PICK_CHART_PERIOD);
   });
 
-  // Show cached data immediately while we try to fetch fresh
+  // Show cached data instantly while live fetch runs in background
   var cached=loadChartCache(ticker,PICK_CHART_PERIOD);
   if(cached&&cached.pairs&&cached.pairs.length){
     drawPickChart(canvas,cached.pairs,PICK_CHART_PERIOD,true,cached.saved);
   } else {
-    // Clear canvas and show subtle loading text in stat strip
     var statEl=document.getElementById('pickChartStat');
     if(statEl) statEl.innerHTML='<span style="font-size:11px;color:var(--tx3)">Loading chart...</span>';
     if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
   }
 
-  // Attempt live fetch regardless — updates cache if successful
-  var params=PICK_PERIOD_MAP[PICK_CHART_PERIOD]||PICK_PERIOD_MAP['1M'];
-  var url='https://query1.finance.yahoo.com/v8/finance/chart/'+ticker
-    +'?range='+params.range+'&interval='+params.interval+'&includePrePost=false';
-
-  fetch(prx(url)).then(function(r){return r.json();}).then(function(d){
-    var result=d&&d.chart&&d.chart.result&&d.chart.result[0];
-    if(!result) throw new Error('no data');
-    var timestamps=result.timestamp||[];
-    var q0=result.indicators&&result.indicators.quote&&result.indicators.quote[0]||{};
-    var closes=q0.close||[];
-    var highs=q0.high||[];
-    var lows=q0.low||[];
-    var volumes=q0.volume||[];
-
-    var pairs=timestamps.map(function(t,i){
-      return {t:t,c:closes[i],h:highs[i],l:lows[i],v:volumes[i]};
-    }).filter(function(x){return x.c!=null;});
-    if(!pairs.length) throw new Error('empty');
-
-    // Save to cache
+  // ── Try Alpaca first (authenticated, no CORS proxy, works after hours) ──
+  fetchAlpacaBars(ticker,PICK_CHART_PERIOD).then(function(pairs){
     saveChartCache(ticker,PICK_CHART_PERIOD,pairs);
-
-    // Only re-draw if this ticker/period is still what's on screen
-    if(PICK_CHART_TICKER===ticker&&PICK_CHART_PERIOD===period){
+    if(PICK_CHART_TICKER===ticker&&PICK_CHART_PERIOD===period)
       drawPickChart(canvas,pairs,PICK_CHART_PERIOD,false,Date.now());
-    }
   }).catch(function(){
-    // Fetch failed — if we already drew from cache, leave it as-is
-    // If there was no cache at all, show a "no data" message
-    if(!cached||!cached.pairs||!cached.pairs.length){
-      var statEl=document.getElementById('pickChartStat');
-      if(statEl) statEl.innerHTML='<span style="color:var(--tx3);font-size:11px">&#9888; No data &mdash; check back when markets open. Data caches automatically once loaded.</span>';
-    }
+    // ── Alpaca failed (no keys or error) → try Yahoo ──
+    fetchYahooBars(ticker,PICK_CHART_PERIOD).then(function(pairs){
+      saveChartCache(ticker,PICK_CHART_PERIOD,pairs);
+      if(PICK_CHART_TICKER===ticker&&PICK_CHART_PERIOD===period)
+        drawPickChart(canvas,pairs,PICK_CHART_PERIOD,false,Date.now());
+    }).catch(function(){
+      // ── Both failed → if no cache was shown, tell the user ──
+      if(!cached||!cached.pairs||!cached.pairs.length){
+        var statEl=document.getElementById('pickChartStat');
+        if(statEl) statEl.innerHTML=
+          '<span style="color:var(--tx3);font-size:11px">&#9888; Could not load chart. '
+          +(document.getElementById('apiKey').value.trim()
+            ?'Check your connection and try again.'
+            :'Connect your Alpaca account above to load chart data any time.')
+          +'</span>';
+      }
+    });
   });
 }
 
