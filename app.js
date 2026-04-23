@@ -73,6 +73,7 @@ var SEARCH_DB=[
 var MODE='paper', CONNECTED=false, ORDER_AMT=5;
 var ACT_SECTOR=null, ACT_FILTER='all';
 var LIVE_PRICES={}, ALL_ORDERS=[], CHART_INST=null, CHART_PERIOD='1M';
+var PICK_CHART_INST=null, PICK_CHART_PERIOD='1M', PICK_CHART_TICKER='';
 var SCREENER={rating:'',conv:0,sig:''};
 var srchFocusIdx=-1;
 var PAPER='https://paper-api.alpaca.markets';
@@ -634,18 +635,63 @@ function renderWatchlist(){
       html+='<div style="font-size:12px;color:var(--tx3);padding:8px 0">No alerts set. Click &ldquo;+ Alert&rdquo; on any watchlist stock.</div>';
     }
     html+='</div>';
-    // Earnings section
+    // Enhanced Earnings Calendar
     var today=new Date();today.setHours(0,0,0,0);
-    html+='<div style="margin-top:20px"><div class="lbl">Earnings Calendar</div><div class="earn-grid">';
-    Object.entries(EARNINGS).filter(function(e){return new Date(e[1])>=today;}).sort(function(a,b){return new Date(a[1])-new Date(b[1]);}).forEach(function(e){
+    // Extended earnings data with extra info
+    var EARN_DETAIL={
+      NVDA:{est:'$0.88 EPS',rev:'$43.2B est.',beat:'Beat 8 of last 8',when:'After close',note:'Blackwell demand update key'},
+      GOOGL:{est:'$2.01 EPS',rev:'$89.1B est.',beat:'Beat 6 of last 8',when:'After close',note:'AI search + Cloud growth'},
+      META:{est:'$5.25 EPS',rev:'$41.3B est.',beat:'Beat 7 of last 8',when:'After close',note:'Ad revenue + AI spend'},
+      MSFT:{est:'$3.22 EPS',rev:'$68.4B est.',beat:'Beat 7 of last 8',when:'After close',note:'Azure AI growth rate key'},
+      AMZN:{est:'$1.36 EPS',rev:'$155.0B est.',beat:'Beat 6 of last 8',when:'After close',note:'AWS + ad segment focus'},
+      LLY:{est:'$3.46 EPS',rev:'$12.9B est.',beat:'Beat 7 of last 8',when:'Before open',note:'Mounjaro/Zepbound sales'},
+      LMT:{est:'$7.02 EPS',rev:'$17.7B est.',beat:'Beat 6 of last 8',when:'Before open',note:'F-35 deliveries + backlog'},
+      RTX:{est:'$1.42 EPS',rev:'$20.5B est.',beat:'Beat 5 of last 8',when:'Before open',note:'Pratt & Whitney update'},
+      PLTR:{est:'$0.13 EPS',rev:'$862M est.',beat:'Beat 8 of last 8',when:'Before open',note:'AIP commercial growth'},
+      APP:{est:'$1.44 EPS',rev:'$1.37B est.',beat:'Beat 5 of last 6',when:'After close',note:'AXON 2.0 e-commerce'},
+      VRT:{est:'$0.98 EPS',rev:'$2.19B est.',beat:'Beat 6 of last 8',when:'Before open',note:'Data center order book'},
+      VST:{est:'$0.44 EPS',rev:'$3.72B est.',beat:'Beat 5 of last 8',when:'After close',note:'Power pricing + AI deals'},
+      COIN:{est:'$1.93 EPS',rev:'$2.10B est.',beat:'Beat 4 of last 8',when:'After close',note:'Trading volume + custody'},
+      HOOD:{est:'$0.27 EPS',rev:'$610M est.',beat:'Beat 5 of last 8',when:'After close',note:'Crypto + Gold subs'},
+      HIMS:{est:'$0.07 EPS',rev:'$530M est.',beat:'Beat 6 of last 8',when:'After close',note:'GLP-1 subscriber count'},
+      ASTS:{est:'-$0.22 EPS',rev:'$28M est.',beat:'Revenue focus',when:'After close',note:'Satellite activations'},
+      IONQ:{est:'-$0.18 EPS',rev:'$14M est.',beat:'Contract wins key',when:'After close',note:'DARPA + qubit progress'},
+      AXON:{est:'$1.68 EPS',rev:'$588M est.',beat:'Beat 7 of last 8',when:'After close',note:'Draft One adoption rate'},
+      OXY:{est:'$0.67 EPS',rev:'$6.8B est.',beat:'Beat 5 of last 8',when:'After close',note:'DAC progress + Permian'},
+      RKLB:{est:'-$0.10 EPS',rev:'$138M est.',beat:'Revenue + launches',when:'After close',note:'Neutron + launch cadence'},
+      CEG:{est:'$2.44 EPS',rev:'$6.2B est.',beat:'Beat 5 of last 8',when:'Before open',note:'Nuclear contracts + AI power'},
+      FSLR:{est:'$2.54 EPS',rev:'$480M est.',beat:'Beat 6 of last 8',when:'After close',note:'IRA + tariff tailwinds'},
+      GS:{est:'$12.35 EPS',rev:'$14.8B est.',beat:'Beat 7 of last 8',when:'Before open',note:'M&A revival + trading'},
+      V:{est:'$2.68 EPS',rev:'$9.6B est.',beat:'Beat 8 of last 8',when:'After close',note:'Cross-border volume key'}
+    };
+    html+='<div style="margin-top:20px"><div class="lbl" style="display:flex;align-items:center;justify-content:space-between">Earnings Calendar <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">Next 60 days</span></div>';
+    html+='<div class="earn-list">';
+    var earnEntries=Object.entries(EARNINGS).filter(function(e){return new Date(e[1])>=today;}).sort(function(a,b){return new Date(a[1])-new Date(b[1]);});
+    earnEntries.forEach(function(e){
       var sym=e[0];var dt=new Date(e[1]);dt.setHours(0,0,0,0);
       var days=Math.round((dt-today)/86400000);
-      var dayLbl=days===0?'Today!':days===1?'Tomorrow':'In '+days+' days';
+      var dayLbl=days===0?'Today!':days===1?'Tomorrow':'In '+days+'d';
       var dayCls=days===0?'earn-to':days<=7?'earn-so':'earn-ok';
-      var co=(DB.find(function(s){return s.ticker===sym;})||{}).company||(SEARCH_DB.find(function(s){return s.t===sym;})||{}).n||'';
-      html+='<div class="earn-c"><div><div class="earn-sy">'+sym+'</div><div class="earn-co">'+co+'</div></div>'
-        +'<div><div class="earn-dt">'+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'
-        +'<div class="earn-dy '+dayCls+'">'+dayLbl+'</div></div></div>';
+      var co=(DB.find(function(s){return s.ticker===sym;})||{}).company||(SEARCH_DB.find(function(s){return s.t===sym;})||{}).n||sym;
+      var det=EARN_DETAIL[sym]||{};
+      var dtFmt=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      html+='<div class="earn-row">'
+        +'<div class="earn-row-left">'
+        +'<div class="earn-row-sym">'+sym+'</div>'
+        +'<div class="earn-row-co">'+co+'</div>'
+        +'</div>'
+        +'<div class="earn-row-mid">'
+        +(det.est?'<div class="earn-det-line"><span class="earn-det-lbl">EPS Est.</span><span class="earn-det-val">'+det.est+'</span></div>':'')
+        +(det.rev?'<div class="earn-det-line"><span class="earn-det-lbl">Rev Est.</span><span class="earn-det-val">'+det.rev+'</span></div>':'')
+        +(det.beat?'<div class="earn-det-line"><span class="earn-det-lbl">Beat Rate</span><span class="earn-det-val earn-beat">'+det.beat+'</span></div>':'')
+        +(det.note?'<div class="earn-note">&#128161; '+det.note+'</div>':'')
+        +'</div>'
+        +'<div class="earn-row-right">'
+        +'<div class="earn-dy '+dayCls+'">'+dayLbl+'</div>'
+        +'<div class="earn-row-dt">'+dtFmt+'</div>'
+        +(det.when?'<div class="earn-when">'+(det.when==='After close'?'&#127751;':'&#127758;')+' '+det.when+'</div>':'')
+        +'</div>'
+        +'</div>';
     });
     html+='</div></div>';
     out.innerHTML=html;
@@ -1089,6 +1135,159 @@ var SECTORS={
       OPFI:{company:'OppFi Inc.',rating:'Speculative Buy',bear:-15,base:55,bull:130,pol:['Finance Committee'],bil:['Emerging fintech funds'],inst:['Small-cap fintech'],insider:['Schwartz CEO buying'],options:['Speculative calls'],retail:['Under-radar fintech'],why:'AI lending for 60M Americans locked out of traditional banks. Huge underserved TAM.'}}}
 };
 
+// ─── PICK STOCK CHART ─────────────────────────────────────────────────────────
+// Maps UI period labels → Yahoo Finance interval & range params
+var PICK_PERIOD_MAP={
+  '1D':{range:'1d',interval:'5m'},
+  '1W':{range:'5d',interval:'60m'},
+  '1M':{range:'1mo',interval:'1d'},
+  '3M':{range:'3mo',interval:'1d'},
+  'YTD':{range:'ytd',interval:'1d'},
+  '1Y':{range:'1y',interval:'1wk'}
+};
+
+function loadPickChart(ticker,period){
+  PICK_CHART_TICKER=ticker;
+  PICK_CHART_PERIOD=period||'1M';
+  var canvas=document.getElementById('pickChart');
+  if(!canvas) return;
+
+  // Update active button state
+  document.querySelectorAll('.pc-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.p===PICK_CHART_PERIOD);
+  });
+
+  var params=PICK_PERIOD_MAP[PICK_CHART_PERIOD]||PICK_PERIOD_MAP['1M'];
+  var url='https://query1.finance.yahoo.com/v8/finance/chart/'+ticker
+    +'?range='+params.range+'&interval='+params.interval+'&includePrePost=false';
+
+  // Show loading shimmer on canvas
+  var ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  fetch(prx(url)).then(function(r){return r.json();}).then(function(d){
+    var result=d&&d.chart&&d.chart.result&&d.chart.result[0];
+    if(!result) throw new Error('no data');
+    var timestamps=result.timestamp||[];
+    var closes=result.indicators&&result.indicators.quote&&result.indicators.quote[0]&&result.indicators.quote[0].close||[];
+    var highs=result.indicators.quote[0].high||[];
+    var lows=result.indicators.quote[0].low||[];
+    var volumes=result.indicators.quote[0].volume||[];
+
+    // Filter nulls
+    var pairs=timestamps.map(function(t,i){return {t:t,c:closes[i],h:highs[i],l:lows[i],v:volumes[i]};}).filter(function(x){return x.c!=null;});
+    if(!pairs.length) throw new Error('empty');
+
+    var labels=pairs.map(function(x){
+      var d=new Date(x.t*1000);
+      if(PICK_CHART_PERIOD==='1D') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+      if(PICK_CHART_PERIOD==='1W') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      if(PICK_CHART_PERIOD==='1Y') return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+      return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    });
+    var prices=pairs.map(function(x){return x.c;});
+    var vols=pairs.map(function(x){return x.v||0;});
+
+    var first=prices[0],last=prices[prices.length-1];
+    var pctChange=((last-first)/first*100);
+    var lineColor=pctChange>=0?'#00c087':'#f03e3e';
+    var fillColor=pctChange>=0?'rgba(0,192,135,0.08)':'rgba(240,62,62,0.08)';
+
+    // Update inline stats
+    var statEl=document.getElementById('pickChartStat');
+    if(statEl){
+      var hi=Math.max.apply(null,pairs.map(function(x){return x.h||x.c;}));
+      var lo=Math.min.apply(null,pairs.map(function(x){return x.l||x.c;}));
+      statEl.innerHTML=
+        '<span class="pcs-item"><span class="pcs-lbl">Change</span><span class="pcs-val" style="color:'+lineColor+'">'+(pctChange>=0?'+':'')+pctChange.toFixed(2)+'%</span></span>'
+        +'<span class="pcs-item"><span class="pcs-lbl">High</span><span class="pcs-val">'+f$(hi)+'</span></span>'
+        +'<span class="pcs-item"><span class="pcs-lbl">Low</span><span class="pcs-val">'+f$(lo)+'</span></span>'
+        +'<span class="pcs-item"><span class="pcs-lbl">Open</span><span class="pcs-val">'+f$(first)+'</span></span>';
+    }
+
+    var isDark=!document.body.hasAttribute('data-light');
+    var gridColor=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)';
+    var tickColor=isDark?'#505c72':'#8896af';
+
+    if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
+
+    PICK_CHART_INST=new Chart(canvas,{
+      type:'line',
+      data:{
+        labels:labels,
+        datasets:[{
+          data:prices,
+          borderColor:lineColor,
+          borderWidth:2,
+          pointRadius:0,
+          pointHoverRadius:4,
+          pointHoverBackgroundColor:lineColor,
+          fill:true,
+          backgroundColor:fillColor,
+          tension:0.2,
+          yAxisID:'y'
+        },{
+          data:vols,
+          type:'bar',
+          backgroundColor:lineColor+'22',
+          borderColor:'transparent',
+          borderWidth:0,
+          yAxisID:'vol',
+          barPercentage:0.8
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:isDark?'#1e2433':'#ffffff',
+            borderColor:isDark?'#2d3748':'#dde1ec',
+            borderWidth:1,
+            titleColor:isDark?'#8892a8':'#4a5568',
+            bodyColor:isDark?'#e2e8f4':'#1a2035',
+            padding:10,
+            callbacks:{
+              title:function(items){return labels[items[0].dataIndex];},
+              label:function(c){
+                if(c.datasetIndex===0) return ' Price: '+f$(c.raw);
+                if(c.raw>=1e6) return ' Vol: '+(c.raw/1e6).toFixed(1)+'M';
+                if(c.raw>=1e3) return ' Vol: '+(c.raw/1e3).toFixed(0)+'K';
+                return ' Vol: '+c.raw;
+              }
+            }
+          }
+        },
+        scales:{
+          x:{
+            grid:{color:gridColor,drawBorder:false},
+            ticks:{color:tickColor,maxTicksLimit:7,font:{size:10}},
+            border:{display:false}
+          },
+          y:{
+            position:'right',
+            grid:{color:gridColor,drawBorder:false},
+            ticks:{color:tickColor,font:{size:10},callback:function(v){return f$(v);}},
+            border:{display:false}
+          },
+          vol:{
+            position:'left',
+            grid:{display:false},
+            ticks:{display:false},
+            border:{display:false},
+            max:function(){return Math.max.apply(null,vols)*6;}()
+          }
+        }
+      }
+    });
+  }).catch(function(){
+    var statEl=document.getElementById('pickChartStat');
+    if(statEl) statEl.innerHTML='<span style="color:var(--tx3);font-size:11px">Chart data unavailable &mdash; market may be closed</span>';
+  });
+}
+
 // ─── PICKS RENDERER ───────────────────────────────────────────────────────────
 var STEPS=['Scanning STOCK Act disclosures...','Cross-referencing analyst ratings...','Running AI prediction models...','Ranking by conviction score...'];
 
@@ -1139,6 +1338,20 @@ function renderPicks(sorted,live){
     +(live&&pick.livePrice?'<span class="tag t-s nc">&#9679; Live</span>':'<span class="tag t-s nc">Est.</span>')
     +'</div>';
   html+='<div class="sigs">'+sigChips(pick)+'</div>';
+
+  // ── STOCK CHART BLOCK ──
+  html+='<div class="pick-chart-wrap">';
+  html+='<div class="pick-chart-hdr">';
+  html+='<div class="pick-chart-periods">';
+  ['1D','1W','1M','3M','YTD','1Y'].forEach(function(p){
+    html+='<button class="pc-btn'+(p==='1M'?' active':'')+'" data-p="'+p+'" onclick="loadPickChart(\''+pick.ticker+'\',\''+p+'\')">'+p+'</button>';
+  });
+  html+='</div>';
+  html+='<div class="pick-chart-stat" id="pickChartStat"><span style="font-size:11px;color:var(--tx3)">Loading chart...</span></div>';
+  html+='</div>';
+  html+='<div style="position:relative;height:200px"><canvas id="pickChart"></canvas></div>';
+  html+='</div>';
+
   html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'
     +'<div class="as-box"><div class="as-val">'+pick.polScore+'<small style="font-size:11px;color:var(--tx3)">/100</small></div><div class="as-lbl">Political Score</div></div>'
     +'<div class="as-box"><div class="as-val">'+pick.conf+'<small style="font-size:11px;color:var(--tx3)">/100</small></div><div class="as-lbl">Analyst Conf.</div></div>'
@@ -1201,6 +1414,8 @@ function renderPicks(sorted,live){
   html+='</div>';
   html+='<p class="disc">Business Insiders is for informational and entertainment purposes only. Not financial advice. AI predictions are model-generated estimates. Data from STOCK Act disclosures, 13F filings, SEC Form 4, options flow, and social sentiment.</p>';
   document.getElementById('picksOut').innerHTML=html;
+  // Load stock chart for top pick with slight delay so canvas is in DOM
+  setTimeout(function(){loadPickChart(pick.ticker,'1M');},50);
 }
 
 function run(){
