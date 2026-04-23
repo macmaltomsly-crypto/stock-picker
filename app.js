@@ -1146,145 +1146,207 @@ var PICK_PERIOD_MAP={
   '1Y':{range:'1y',interval:'1wk'}
 };
 
+// ─── CHART CACHE HELPERS ──────────────────────────────────────────────────────
+function chartCacheKey(ticker,period){return 'psp_chart_'+ticker+'_'+period;}
+
+function saveChartCache(ticker,period,pairs){
+  try{
+    var key=chartCacheKey(ticker,period);
+    var payload=JSON.stringify({pairs:pairs,saved:Date.now()});
+    localStorage.setItem(key,payload);
+  }catch(e){/* storage full – silently skip */}
+}
+
+function loadChartCache(ticker,period){
+  try{
+    var raw=localStorage.getItem(chartCacheKey(ticker,period));
+    if(!raw) return null;
+    var obj=JSON.parse(raw);
+    // Expire 1D cache after 12 h; all others after 7 days
+    var maxAge=period==='1D'?12*3600*1000:7*24*3600*1000;
+    if(Date.now()-obj.saved>maxAge){localStorage.removeItem(chartCacheKey(ticker,period));return null;}
+    return obj;
+  }catch(e){return null;}
+}
+
+function fmtChartAge(savedMs){
+  var diff=Math.round((Date.now()-savedMs)/60000);// minutes
+  if(diff<2)  return 'just now';
+  if(diff<60) return diff+'m ago';
+  var h=Math.round(diff/60);
+  if(h<24)    return h+'h ago';
+  return Math.round(h/24)+'d ago';
+}
+
+// ─── DRAW CHART FROM PAIRS ────────────────────────────────────────────────────
+function drawPickChart(canvas,pairs,period,fromCache,cacheAge){
+  var labels=pairs.map(function(x){
+    var d=new Date(x.t*1000);
+    if(period==='1D') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+    if(period==='1W') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    if(period==='1Y') return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  });
+  var prices=pairs.map(function(x){return x.c;});
+  var vols=pairs.map(function(x){return x.v||0;});
+
+  var first=prices[0],last=prices[prices.length-1];
+  var pctChange=((last-first)/first*100);
+  var lineColor=pctChange>=0?'#00c087':'#f03e3e';
+  var fillColor=pctChange>=0?'rgba(0,192,135,0.08)':'rgba(240,62,62,0.08)';
+
+  // Update stat strip
+  var statEl=document.getElementById('pickChartStat');
+  if(statEl){
+    var hi=Math.max.apply(null,pairs.map(function(x){return x.h||x.c;}));
+    var lo=Math.min.apply(null,pairs.map(function(x){return x.l||x.c;}));
+    statEl.innerHTML=
+      '<span class="pcs-item"><span class="pcs-lbl">Change</span><span class="pcs-val" style="color:'+lineColor+'">'+(pctChange>=0?'+':'')+pctChange.toFixed(2)+'%</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">High</span><span class="pcs-val">'+f$(hi)+'</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">Low</span><span class="pcs-val">'+f$(lo)+'</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">Open</span><span class="pcs-val">'+f$(first)+'</span></span>'
+      +(fromCache?'<span class="pcs-item pcs-cached" title="Cached data — refreshes when market is open">&#128190; '+fmtChartAge(cacheAge)+'</span>':'<span class="pcs-item pcs-live">&#9679; Live</span>');
+  }
+
+  var isDark=!document.body.hasAttribute('data-light');
+  var gridColor=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)';
+  var tickColor=isDark?'#505c72':'#8896af';
+
+  if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
+
+  var maxVol=Math.max.apply(null,vols)||1;
+
+  PICK_CHART_INST=new Chart(canvas,{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[{
+        data:prices,
+        borderColor:lineColor,
+        borderWidth:2,
+        pointRadius:0,
+        pointHoverRadius:4,
+        pointHoverBackgroundColor:lineColor,
+        fill:true,
+        backgroundColor:fillColor,
+        tension:0.2,
+        yAxisID:'y'
+      },{
+        data:vols,
+        type:'bar',
+        backgroundColor:lineColor+'22',
+        borderColor:'transparent',
+        borderWidth:0,
+        yAxisID:'vol',
+        barPercentage:0.8
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:isDark?'#1e2433':'#ffffff',
+          borderColor:isDark?'#2d3748':'#dde1ec',
+          borderWidth:1,
+          titleColor:isDark?'#8892a8':'#4a5568',
+          bodyColor:isDark?'#e2e8f4':'#1a2035',
+          padding:10,
+          callbacks:{
+            title:function(items){return labels[items[0].dataIndex];},
+            label:function(c){
+              if(c.datasetIndex===0) return ' Price: '+f$(c.raw);
+              var v=c.raw;
+              if(v>=1e6) return ' Vol: '+(v/1e6).toFixed(1)+'M';
+              if(v>=1e3) return ' Vol: '+(v/1e3).toFixed(0)+'K';
+              return ' Vol: '+v;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:gridColor,drawBorder:false},
+          ticks:{color:tickColor,maxTicksLimit:7,font:{size:10}},
+          border:{display:false}
+        },
+        y:{
+          position:'right',
+          grid:{color:gridColor,drawBorder:false},
+          ticks:{color:tickColor,font:{size:10},callback:function(v){return f$(v);}},
+          border:{display:false}
+        },
+        vol:{
+          position:'left',
+          grid:{display:false},
+          ticks:{display:false},
+          border:{display:false},
+          max:maxVol*6
+        }
+      }
+    }
+  });
+}
+
+// ─── LOAD PICK CHART (fetch → cache → render) ────────────────────────────────
 function loadPickChart(ticker,period){
   PICK_CHART_TICKER=ticker;
   PICK_CHART_PERIOD=period||'1M';
   var canvas=document.getElementById('pickChart');
   if(!canvas) return;
 
-  // Update active button state
+  // Sync active button
   document.querySelectorAll('.pc-btn').forEach(function(b){
     b.classList.toggle('active',b.dataset.p===PICK_CHART_PERIOD);
   });
 
+  // Show cached data immediately while we try to fetch fresh
+  var cached=loadChartCache(ticker,PICK_CHART_PERIOD);
+  if(cached&&cached.pairs&&cached.pairs.length){
+    drawPickChart(canvas,cached.pairs,PICK_CHART_PERIOD,true,cached.saved);
+  } else {
+    // Clear canvas and show subtle loading text in stat strip
+    var statEl=document.getElementById('pickChartStat');
+    if(statEl) statEl.innerHTML='<span style="font-size:11px;color:var(--tx3)">Loading chart...</span>';
+    if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
+  }
+
+  // Attempt live fetch regardless — updates cache if successful
   var params=PICK_PERIOD_MAP[PICK_CHART_PERIOD]||PICK_PERIOD_MAP['1M'];
   var url='https://query1.finance.yahoo.com/v8/finance/chart/'+ticker
     +'?range='+params.range+'&interval='+params.interval+'&includePrePost=false';
-
-  // Show loading shimmer on canvas
-  var ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   fetch(prx(url)).then(function(r){return r.json();}).then(function(d){
     var result=d&&d.chart&&d.chart.result&&d.chart.result[0];
     if(!result) throw new Error('no data');
     var timestamps=result.timestamp||[];
-    var closes=result.indicators&&result.indicators.quote&&result.indicators.quote[0]&&result.indicators.quote[0].close||[];
-    var highs=result.indicators.quote[0].high||[];
-    var lows=result.indicators.quote[0].low||[];
-    var volumes=result.indicators.quote[0].volume||[];
+    var q0=result.indicators&&result.indicators.quote&&result.indicators.quote[0]||{};
+    var closes=q0.close||[];
+    var highs=q0.high||[];
+    var lows=q0.low||[];
+    var volumes=q0.volume||[];
 
-    // Filter nulls
-    var pairs=timestamps.map(function(t,i){return {t:t,c:closes[i],h:highs[i],l:lows[i],v:volumes[i]};}).filter(function(x){return x.c!=null;});
+    var pairs=timestamps.map(function(t,i){
+      return {t:t,c:closes[i],h:highs[i],l:lows[i],v:volumes[i]};
+    }).filter(function(x){return x.c!=null;});
     if(!pairs.length) throw new Error('empty');
 
-    var labels=pairs.map(function(x){
-      var d=new Date(x.t*1000);
-      if(PICK_CHART_PERIOD==='1D') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
-      if(PICK_CHART_PERIOD==='1W') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      if(PICK_CHART_PERIOD==='1Y') return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
-      return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    });
-    var prices=pairs.map(function(x){return x.c;});
-    var vols=pairs.map(function(x){return x.v||0;});
+    // Save to cache
+    saveChartCache(ticker,PICK_CHART_PERIOD,pairs);
 
-    var first=prices[0],last=prices[prices.length-1];
-    var pctChange=((last-first)/first*100);
-    var lineColor=pctChange>=0?'#00c087':'#f03e3e';
-    var fillColor=pctChange>=0?'rgba(0,192,135,0.08)':'rgba(240,62,62,0.08)';
-
-    // Update inline stats
-    var statEl=document.getElementById('pickChartStat');
-    if(statEl){
-      var hi=Math.max.apply(null,pairs.map(function(x){return x.h||x.c;}));
-      var lo=Math.min.apply(null,pairs.map(function(x){return x.l||x.c;}));
-      statEl.innerHTML=
-        '<span class="pcs-item"><span class="pcs-lbl">Change</span><span class="pcs-val" style="color:'+lineColor+'">'+(pctChange>=0?'+':'')+pctChange.toFixed(2)+'%</span></span>'
-        +'<span class="pcs-item"><span class="pcs-lbl">High</span><span class="pcs-val">'+f$(hi)+'</span></span>'
-        +'<span class="pcs-item"><span class="pcs-lbl">Low</span><span class="pcs-val">'+f$(lo)+'</span></span>'
-        +'<span class="pcs-item"><span class="pcs-lbl">Open</span><span class="pcs-val">'+f$(first)+'</span></span>';
+    // Only re-draw if this ticker/period is still what's on screen
+    if(PICK_CHART_TICKER===ticker&&PICK_CHART_PERIOD===period){
+      drawPickChart(canvas,pairs,PICK_CHART_PERIOD,false,Date.now());
     }
-
-    var isDark=!document.body.hasAttribute('data-light');
-    var gridColor=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)';
-    var tickColor=isDark?'#505c72':'#8896af';
-
-    if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
-
-    PICK_CHART_INST=new Chart(canvas,{
-      type:'line',
-      data:{
-        labels:labels,
-        datasets:[{
-          data:prices,
-          borderColor:lineColor,
-          borderWidth:2,
-          pointRadius:0,
-          pointHoverRadius:4,
-          pointHoverBackgroundColor:lineColor,
-          fill:true,
-          backgroundColor:fillColor,
-          tension:0.2,
-          yAxisID:'y'
-        },{
-          data:vols,
-          type:'bar',
-          backgroundColor:lineColor+'22',
-          borderColor:'transparent',
-          borderWidth:0,
-          yAxisID:'vol',
-          barPercentage:0.8
-        }]
-      },
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        interaction:{mode:'index',intersect:false},
-        plugins:{
-          legend:{display:false},
-          tooltip:{
-            backgroundColor:isDark?'#1e2433':'#ffffff',
-            borderColor:isDark?'#2d3748':'#dde1ec',
-            borderWidth:1,
-            titleColor:isDark?'#8892a8':'#4a5568',
-            bodyColor:isDark?'#e2e8f4':'#1a2035',
-            padding:10,
-            callbacks:{
-              title:function(items){return labels[items[0].dataIndex];},
-              label:function(c){
-                if(c.datasetIndex===0) return ' Price: '+f$(c.raw);
-                if(c.raw>=1e6) return ' Vol: '+(c.raw/1e6).toFixed(1)+'M';
-                if(c.raw>=1e3) return ' Vol: '+(c.raw/1e3).toFixed(0)+'K';
-                return ' Vol: '+c.raw;
-              }
-            }
-          }
-        },
-        scales:{
-          x:{
-            grid:{color:gridColor,drawBorder:false},
-            ticks:{color:tickColor,maxTicksLimit:7,font:{size:10}},
-            border:{display:false}
-          },
-          y:{
-            position:'right',
-            grid:{color:gridColor,drawBorder:false},
-            ticks:{color:tickColor,font:{size:10},callback:function(v){return f$(v);}},
-            border:{display:false}
-          },
-          vol:{
-            position:'left',
-            grid:{display:false},
-            ticks:{display:false},
-            border:{display:false},
-            max:function(){return Math.max.apply(null,vols)*6;}()
-          }
-        }
-      }
-    });
   }).catch(function(){
-    var statEl=document.getElementById('pickChartStat');
-    if(statEl) statEl.innerHTML='<span style="color:var(--tx3);font-size:11px">Chart data unavailable &mdash; market may be closed</span>';
+    // Fetch failed — if we already drew from cache, leave it as-is
+    // If there was no cache at all, show a "no data" message
+    if(!cached||!cached.pairs||!cached.pairs.length){
+      var statEl=document.getElementById('pickChartStat');
+      if(statEl) statEl.innerHTML='<span style="color:var(--tx3);font-size:11px">&#9888; No data &mdash; check back when markets open. Data caches automatically once loaded.</span>';
+    }
   });
 }
 
