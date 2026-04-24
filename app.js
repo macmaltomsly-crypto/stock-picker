@@ -784,25 +784,23 @@ function closeSectorDetail(){
   ACT_SECTOR=null;
 }
 
-// FIX: added missing ss-buy button logic - now uses btn-buy style inline
 function ssRow(s,isGem){
   var ratingColor=s.rating==='Strong Buy'?'t-g':s.rating==='Moderate Buy'?'t-y':'t-s';
   var cv=convScore(s);var cvCls=cv>=80?'cv-hi':cv>=60?'cv-go':cv>=40?'cv-md':'cv-lo';
   var bMode=MODE==='paper';
   var html='<div class="ss-rw'+(isGem?' gem-rw':'')+'">';
   if(isGem) html+='<div class="gem-lbl">&#11088; Hidden Gem</div>';
-  html+='<div class="ss-top">'
-    +'<div><div class="ss-sy">'+s.ticker+'</div><div class="ss-co">'+(s.company||s.ticker)+'</div></div>'
+  html+='<div class="ss-top" style="cursor:pointer" onclick="openStockModal(\''+s.ticker+'\',null)" title="Click for chart &amp; full details">'
+    +'<div><div class="ss-sy">'+s.ticker+' <span style="font-size:9px;color:var(--b);font-weight:500">&#8599; details</span></div><div class="ss-co">'+(s.company||s.ticker)+'</div></div>'
     +'<div class="ss-rt"><span class="ss-ra tag '+ratingColor+' nc">'+s.rating+'</span><div class="ss-bs">'+pct(s.base||0)+' base</div></div>'
     +'</div>'
     +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px"><span class="cv-lbl '+cvCls+'">&#9889; '+cv+'</span>'
-    +'<a href="https://finance.yahoo.com/quote/'+s.ticker+'" target="_blank" class="btn-link">News</a>'
-    +'<a href="https://finviz.com/quote.ashx?t='+s.ticker+'" target="_blank" class="btn-link">Chart</a></div>'
+    +'<a href="https://finance.yahoo.com/quote/'+s.ticker+'" target="_blank" class="btn-link" onclick="event.stopPropagation()">News</a>'
+    +'<a href="https://finviz.com/quote.ashx?t='+s.ticker+'" target="_blank" class="btn-link" onclick="event.stopPropagation()">Chart</a></div>'
     +'<div class="sigs">'+sigChips(s)+'</div>'
     +'<div class="ss-prd"><div class="ss-p bear">Bear '+pct(s.bear||0)+'</div><div class="ss-p base">Base '+pct(s.base||0)+'</div><div class="ss-p bull">Bull +'+(s.bull||0)+'%</div></div>'
     +'<div class="ss-wh">'+(s.why||'')+'</div>'
-    // FIX: use btn-buy class which IS defined, instead of ss-buy which was never defined
-    +'<button class="btn-buy'+(bMode?' paper':'')+'" style="width:100%;margin-top:8px;font-size:12px;padding:8px" onclick="buyStock(\''+s.ticker+'\',this)" '+(CONNECTED?'':'title="Connect Alpaca to trade"')+'>Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
+    +'<button class="btn-buy'+(bMode?' paper':'')+'" style="width:100%;margin-top:8px;font-size:12px;padding:8px" onclick="event.stopPropagation();buyStock(\''+s.ticker+'\',this)" '+(CONNECTED?'':'title="Connect Alpaca to trade"')+'>Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
     +'</div>';
   return html;
 }
@@ -840,24 +838,221 @@ function renderSectorDetail(name){
   document.getElementById('sectorDetail').innerHTML=html;
 }
 
-// ─── MODAL ────────────────────────────────────────────────────────────────────
+// ─── STOCK DETAIL MODAL ───────────────────────────────────────────────────────
+// Single modal that handles gems, runner-ups, search results, sector stocks
+var STOCK_MODAL_CHART=null;
+
+function openStockModal(ticker,stockData){
+  var s=stockData||ALL_STOCKS.find(function(x){return x.ticker===ticker;})||{ticker:ticker,company:ticker};
+  var bMode=MODE==='paper';
+  var cv=convScore(s);var cvCls=cv>=80?'cv-hi':cv>=60?'cv-go':cv>=40?'cv-md':'cv-lo';
+  var rCls=s.rating==='Strong Buy'?'t-g':s.rating==='Moderate Buy'?'t-y':'t-s';
+  var lp=LIVE_PRICES[ticker]||s.livePrice||s.fb||0;
+  var chg=s.liveChg||0;var isUp=chg>=0;
+
+  var html='';
+
+  // Header
+  html+='<div class="sm-head">'
+    +'<div class="sm-hl">'
+    +'<div class="sm-tk">'+ticker+'</div>'
+    +'<div class="sm-co">'+(s.company||ticker)+'</div>'
+    +(s.rating?'<span class="tag '+rCls+' nc" style="margin-top:6px">'+s.rating+'</span>':'')
+    +'</div>'
+    +'<div class="sm-hr">'
+    +(lp?'<div class="sm-pr">'+f$(lp)+'</div>':'')
+    +(chg?'<div class="sm-chg '+(isUp?'up':'dn')+'">'+(isUp?'+':'')+chg.toFixed(2)+'%</div>':'')
+    +'</div>'
+    +'</div>';
+
+  // Chart
+  html+='<div class="pick-chart-wrap" style="margin:10px 0">'
+    +'<div class="pick-chart-hdr">'
+    +'<div class="pick-chart-periods">';
+  ['1D','1W','1M','3M','YTD','1Y'].forEach(function(p){
+    html+='<button class="pc-btn'+(p==='1M'?' active':'')+'" data-p="'+p+'" onclick="loadModalChart(\''+ticker+'\',\''+p+'\')">'+p+'</button>';
+  });
+  html+='</div>'
+    +'<div class="pick-chart-stat" id="modalChartStat"><span style="font-size:11px;color:var(--tx3)">Loading...</span></div>'
+    +'</div>'
+    +'<div style="position:relative;height:180px"><canvas id="modalChart"></canvas></div>'
+    +'</div>';
+
+  // Stats grid
+  if(s.bear!=null||s.base!=null||s.bull!=null){
+    html+='<div class="ss-prd" style="margin-bottom:10px">'
+      +'<div class="ss-p bear">Bear '+pct(s.bear||0)+'</div>'
+      +'<div class="ss-p base">Base '+pct(s.base||0)+'</div>'
+      +'<div class="ss-p bull">Bull +'+(s.bull||0)+'%</div>'
+      +'</div>';
+    // Prediction bars for gems
+    if(s.bearP!=null) html+=predBars(s);
+  }
+
+  // Conviction
+  if(cv>0){
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+      +'<span class="cv-lbl '+cvCls+'">&#9889; '+cv+' conviction</span>'
+      +'</div>';
+  }
+
+  // Signal chips
+  if(sigChips(s)) html+='<div class="sigs" style="margin-bottom:10px">'+sigChips(s)+'</div>';
+
+  // Why
+  if(s.why) html+='<div class="why-box">'+s.why+'</div>';
+
+  // Catalyst (gems)
+  if(s.catalyst) html+='<div class="cat-txt" style="margin-bottom:10px">'+s.catalyst+'</div>';
+
+  // Who's buying
+  html+=whosBuying(s,false);
+
+  // Action row
+  html+='<div class="action-row" style="border-top:1px solid var(--b1);padding-top:12px;margin-top:10px">'
+    +'<button class="btn-buy'+(bMode?' paper':'')+'" onclick="buyStock(\''+ticker+'\',this)">Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
+    +'<button class="btn-buy-sm" onclick="addToWL(\''+ticker+'\');showToast(\''+ticker+' added to watchlist\',\'ok\')">+ Watchlist</button>'
+    +'<a href="https://finance.yahoo.com/quote/'+ticker+'" target="_blank" class="btn-link">&#128240; News</a>'
+    +'<a href="https://finviz.com/quote.ashx?t='+ticker+'" target="_blank" class="btn-link">Finviz</a>'
+    +'</div>';
+  html+=bracketPanel(ticker);
+  html+=articlesHTML(ticker);
+
+  // Set modal content and open
+  document.getElementById('moT').innerHTML='';
+  document.getElementById('moS').innerHTML='';
+  document.getElementById('moB').innerHTML=html;
+  document.getElementById('modalOv').classList.add('open');
+
+  // Load chart after DOM settles
+  setTimeout(function(){loadModalChart(ticker,'1M');},60);
+}
+
+// ─── MODAL CHART (separate instance from main pick chart) ─────────────────────
+function loadModalChart(ticker,period){
+  // Update button states scoped to modal
+  document.querySelectorAll('#moB .pc-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.p===period);
+  });
+  var canvas=document.getElementById('modalChart');
+  if(!canvas) return;
+
+  // Show cache immediately
+  var cached=loadChartCache(ticker,period);
+  if(cached&&cached.pairs&&cached.pairs.length){
+    drawChartOnCanvas(canvas,'modalChartStat',cached.pairs,period,true,cached.saved,STOCK_MODAL_CHART,function(inst){STOCK_MODAL_CHART=inst;});
+  } else {
+    var st=document.getElementById('modalChartStat');
+    if(st) st.innerHTML='<span style="font-size:11px;color:var(--tx3)">Loading...</span>';
+    if(STOCK_MODAL_CHART){STOCK_MODAL_CHART.destroy();STOCK_MODAL_CHART=null;}
+  }
+
+  // Fetch fresh
+  fetchAlpacaBars(ticker,period).then(function(pairs){
+    saveChartCache(ticker,period,pairs);
+    var c=document.getElementById('modalChart');
+    if(c) drawChartOnCanvas(c,'modalChartStat',pairs,period,false,Date.now(),STOCK_MODAL_CHART,function(inst){STOCK_MODAL_CHART=inst;});
+  }).catch(function(){
+    fetchYahooBars(ticker,period).then(function(pairs){
+      saveChartCache(ticker,period,pairs);
+      var c=document.getElementById('modalChart');
+      if(c) drawChartOnCanvas(c,'modalChartStat',pairs,period,false,Date.now(),STOCK_MODAL_CHART,function(inst){STOCK_MODAL_CHART=inst;});
+    }).catch(function(){
+      if(!cached||!cached.pairs||!cached.pairs.length){
+        var st=document.getElementById('modalChartStat');
+        if(st) st.innerHTML='<span style="color:var(--tx3);font-size:11px">&#9888; No chart data available</span>';
+      }
+    });
+  });
+}
+
+// ─── GENERIC CHART DRAW (works for both main pick chart and modal chart) ───────
+function drawChartOnCanvas(canvas,statId,pairs,period,fromCache,cacheAge,existingInst,setInst){
+  var labels=pairs.map(function(x){
+    var d=new Date(x.t*1000);
+    if(period==='1D') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+    if(period==='1W') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    if(period==='1Y') return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  });
+  var prices=pairs.map(function(x){return x.c;});
+  var vols=pairs.map(function(x){return x.v||0;});
+  var first=prices[0],last=prices[prices.length-1];
+  var pctChange=((last-first)/first*100);
+  var lineColor=pctChange>=0?'#00c087':'#f03e3e';
+  var fillColor=pctChange>=0?'rgba(0,192,135,0.08)':'rgba(240,62,62,0.08)';
+
+  var statEl=document.getElementById(statId);
+  if(statEl){
+    var hi=Math.max.apply(null,pairs.map(function(x){return x.h||x.c;}));
+    var lo=Math.min.apply(null,pairs.map(function(x){return x.l||x.c;}));
+    statEl.innerHTML=
+      '<span class="pcs-item"><span class="pcs-lbl">Chg</span><span class="pcs-val" style="color:'+lineColor+'">'+(pctChange>=0?'+':'')+pctChange.toFixed(2)+'%</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">Hi</span><span class="pcs-val">'+f$(hi)+'</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">Lo</span><span class="pcs-val">'+f$(lo)+'</span></span>'
+      +'<span class="pcs-item"><span class="pcs-lbl">Open</span><span class="pcs-val">'+f$(first)+'</span></span>'
+      +(fromCache?'<span class="pcs-item pcs-cached" title="Cached — refreshes when market open">&#128190; '+fmtChartAge(cacheAge)+'</span>':'<span class="pcs-item pcs-live">&#9679; Live</span>');
+  }
+
+  var isDark=!document.body.hasAttribute('data-light');
+  var gridColor=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)';
+  var tickColor=isDark?'#505c72':'#8896af';
+  var maxVol=Math.max.apply(null,vols)||1;
+
+  if(existingInst){existingInst.destroy();}
+  var inst=new Chart(canvas,{
+    type:'line',
+    data:{labels:labels,datasets:[{
+      data:prices,borderColor:lineColor,borderWidth:2,pointRadius:0,
+      pointHoverRadius:4,pointHoverBackgroundColor:lineColor,
+      fill:true,backgroundColor:fillColor,tension:0.2,yAxisID:'y'
+    },{
+      data:vols,type:'bar',backgroundColor:lineColor+'22',
+      borderColor:'transparent',borderWidth:0,yAxisID:'vol',barPercentage:0.8
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{
+        backgroundColor:isDark?'#1e2433':'#ffffff',
+        borderColor:isDark?'#2d3748':'#dde1ec',borderWidth:1,
+        titleColor:isDark?'#8892a8':'#4a5568',
+        bodyColor:isDark?'#e2e8f4':'#1a2035',padding:10,
+        callbacks:{
+          title:function(items){return labels[items[0].dataIndex];},
+          label:function(c){
+            if(c.datasetIndex===0) return ' Price: '+f$(c.raw);
+            var v=c.raw;
+            if(v>=1e6) return ' Vol: '+(v/1e6).toFixed(1)+'M';
+            if(v>=1e3) return ' Vol: '+(v/1e3).toFixed(0)+'K';
+            return ' Vol: '+v;
+          }
+        }
+      }},
+      scales:{
+        x:{grid:{color:gridColor,drawBorder:false},ticks:{color:tickColor,maxTicksLimit:6,font:{size:10}},border:{display:false}},
+        y:{position:'right',grid:{color:gridColor,drawBorder:false},ticks:{color:tickColor,font:{size:10},callback:function(v){return f$(v);}},border:{display:false}},
+        vol:{position:'left',grid:{display:false},ticks:{display:false},border:{display:false},max:maxVol*6}
+      }
+    }
+  });
+  setInst(inst);
+}
+
+// ─── SECTOR MODAL (now just opens sector panel, stock detail handled by openStockModal) ───
 function openSectorModal(sectorName){
   var sec=SECTORS[sectorName];if(!sec)return;
   document.getElementById('moT').textContent=sec.icon+' '+sectorName;
   document.getElementById('moS').textContent=sec.stocks.length+' stocks \u00b7 '+sec.gems.length+' hidden gems';
-  var html='';
-  sec.stocks.forEach(function(tk){html+=ssRow(getStockData(tk,sec),false);});
-  if(sec.gems.length){
-    html+='<div class="sec-dv">&#11088; Hidden Gems</div>';
-    sec.gems.forEach(function(tk){html+=ssRow(getStockData(tk,sec),true);});
-  }
-  document.getElementById('moB').innerHTML=html;
-  var ov=document.getElementById('modalOv');
-  ov.classList.add('open');
+  document.getElementById('moB').innerHTML='<div style="font-size:11px;color:var(--tx3);padding:4px 0 12px">Click any stock for full details &amp; chart</div>'
+    +sec.stocks.map(function(tk){return ssRow(getStockData(tk,sec),false);}).join('')
+    +(sec.gems.length?'<div class="sec-dv">&#11088; Hidden Gems</div>'+sec.gems.map(function(tk){return ssRow(getStockData(tk,sec),true);}).join(''):'');
+  document.getElementById('modalOv').classList.add('open');
 }
 
 function closeModal(){
   document.getElementById('modalOv').classList.remove('open');
+  if(STOCK_MODAL_CHART){STOCK_MODAL_CHART.destroy();STOCK_MODAL_CHART=null;}
 }
 
 function maybeClose(e){if(e.target===document.getElementById('modalOv'))closeModal();}
@@ -974,6 +1169,7 @@ function showLocalResult(ticker,out,fromDB){
 function renderSearchResult(q,ticker,out,fromDB){
   var dbStock=ALL_STOCKS.find(function(s){return s.ticker===q.symbol;});
   LIVE_PRICES[q.symbol]=q.regularMarketPrice;
+  if(dbStock){dbStock.livePrice=q.regularMarketPrice;dbStock.liveChg=q.regularMarketChangePercent||0;}
   var price=q.regularMarketPrice||0;var chg=q.regularMarketChangePercent||0;var isUp=chg>=0;
   var bMode=MODE==='paper';
   var html='<div class="card">'
@@ -981,9 +1177,22 @@ function renderSearchResult(q,ticker,out,fromDB){
     +'<div class="tr-left"><div class="tk">'+q.symbol+'</div><div class="tn">'+(q.longName||q.shortName||q.symbol)+(q.fullExchangeName?' &middot; '+q.fullExchangeName:'')+'</div></div>'
     +'<div class="tr-right"><div class="tr-price">'+f$(price)+'</div><div class="tr-chg '+(isUp?'up':'dn')+'">'+(isUp?'+':'')+chg.toFixed(2)+'% today</div></div>'
     +'</div>'
+    // Inline chart
+    +'<div class="pick-chart-wrap" style="margin:10px 0">'
+    +'<div class="pick-chart-hdr">'
+    +'<div class="pick-chart-periods">';
+  ['1D','1W','1M','3M','YTD','1Y'].forEach(function(p){
+    html+='<button class="pc-btn'+(p==='1M'?' active':'')+'" data-p="'+p+'" onclick="loadSearchChart(\''+q.symbol+'\',\''+p+'\')">'+p+'</button>';
+  });
+  html+='</div>'
+    +'<div class="pick-chart-stat" id="searchChartStat"><span style="font-size:11px;color:var(--tx3)">Loading...</span></div>'
+    +'</div>'
+    +'<div style="position:relative;height:160px"><canvas id="searchChart"></canvas></div>'
+    +'</div>'
+    // Stats
     +'<div class="srch-st">'
     +'<div class="as-box"><div class="as-val">'+(q.marketCap?fmtCap(q.marketCap):'--')+'</div><div class="as-lbl">Market Cap</div></div>'
-    +'<div class="as-box"><div class="as-val">'+(q.trailingPE?q.trailingPE.toFixed(1)+'x':'--')+'</div><div class="as-lbl">Trailing P/E</div></div>'
+    +'<div class="as-box"><div class="as-val">'+(q.trailingPE?q.trailingPE.toFixed(1)+'x':'--')+'</div><div class="as-lbl">P/E</div></div>'
     +'<div class="as-box"><div class="as-val">'+(q.fiftyTwoWeekHigh?f$(q.fiftyTwoWeekHigh):'--')+'</div><div class="as-lbl">52W High</div></div>'
     +'<div class="as-box"><div class="as-val">'+(q.fiftyTwoWeekLow?f$(q.fiftyTwoWeekLow):'--')+'</div><div class="as-lbl">52W Low</div></div>'
     +'</div>'
@@ -999,6 +1208,42 @@ function renderSearchResult(q,ticker,out,fromDB){
     +bracketPanel(q.symbol)+articlesHTML(q.symbol)
     +'</div>';
   out.innerHTML=html;
+  // Load chart after DOM settles
+  setTimeout(function(){loadSearchChart(q.symbol,'1M');},60);
+}
+
+// search page has its own chart instance
+var SEARCH_CHART_INST=null;
+function loadSearchChart(ticker,period){
+  document.querySelectorAll('#searchOut .pc-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.p===period);
+  });
+  var canvas=document.getElementById('searchChart');
+  if(!canvas) return;
+  var cached=loadChartCache(ticker,period);
+  if(cached&&cached.pairs&&cached.pairs.length){
+    drawChartOnCanvas(canvas,'searchChartStat',cached.pairs,period,true,cached.saved,SEARCH_CHART_INST,function(i){SEARCH_CHART_INST=i;});
+  } else {
+    var st=document.getElementById('searchChartStat');
+    if(st) st.innerHTML='<span style="font-size:11px;color:var(--tx3)">Loading...</span>';
+    if(SEARCH_CHART_INST){SEARCH_CHART_INST.destroy();SEARCH_CHART_INST=null;}
+  }
+  fetchAlpacaBars(ticker,period).then(function(pairs){
+    saveChartCache(ticker,period,pairs);
+    var c=document.getElementById('searchChart');
+    if(c) drawChartOnCanvas(c,'searchChartStat',pairs,period,false,Date.now(),SEARCH_CHART_INST,function(i){SEARCH_CHART_INST=i;});
+  }).catch(function(){
+    fetchYahooBars(ticker,period).then(function(pairs){
+      saveChartCache(ticker,period,pairs);
+      var c=document.getElementById('searchChart');
+      if(c) drawChartOnCanvas(c,'searchChartStat',pairs,period,false,Date.now(),SEARCH_CHART_INST,function(i){SEARCH_CHART_INST=i;});
+    }).catch(function(){
+      if(!cached||!cached.pairs||!cached.pairs.length){
+        var st=document.getElementById('searchChartStat');
+        if(st) st.innerHTML='<span style="color:var(--tx3);font-size:11px">&#9888; '+(document.getElementById('apiKey').value.trim()?'No chart data':'Connect Alpaca to load charts')+'</span>';
+      }
+    });
+  });
 }
 
 // ─── STOCK DATA ───────────────────────────────────────────────────────────────
@@ -1264,116 +1509,9 @@ function fmtChartAge(savedMs){
   return Math.round(h/24)+'d ago';
 }
 
-// ─── DRAW CHART FROM PAIRS ────────────────────────────────────────────────────
+// ─── DRAW CHART FROM PAIRS (main pick chart wrapper) ─────────────────────────
 function drawPickChart(canvas,pairs,period,fromCache,cacheAge){
-  var labels=pairs.map(function(x){
-    var d=new Date(x.t*1000);
-    if(period==='1D') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
-    if(period==='1W') return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-    if(period==='1Y') return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
-    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  });
-  var prices=pairs.map(function(x){return x.c;});
-  var vols=pairs.map(function(x){return x.v||0;});
-
-  var first=prices[0],last=prices[prices.length-1];
-  var pctChange=((last-first)/first*100);
-  var lineColor=pctChange>=0?'#00c087':'#f03e3e';
-  var fillColor=pctChange>=0?'rgba(0,192,135,0.08)':'rgba(240,62,62,0.08)';
-
-  // Update stat strip
-  var statEl=document.getElementById('pickChartStat');
-  if(statEl){
-    var hi=Math.max.apply(null,pairs.map(function(x){return x.h||x.c;}));
-    var lo=Math.min.apply(null,pairs.map(function(x){return x.l||x.c;}));
-    statEl.innerHTML=
-      '<span class="pcs-item"><span class="pcs-lbl">Change</span><span class="pcs-val" style="color:'+lineColor+'">'+(pctChange>=0?'+':'')+pctChange.toFixed(2)+'%</span></span>'
-      +'<span class="pcs-item"><span class="pcs-lbl">High</span><span class="pcs-val">'+f$(hi)+'</span></span>'
-      +'<span class="pcs-item"><span class="pcs-lbl">Low</span><span class="pcs-val">'+f$(lo)+'</span></span>'
-      +'<span class="pcs-item"><span class="pcs-lbl">Open</span><span class="pcs-val">'+f$(first)+'</span></span>'
-      +(fromCache?'<span class="pcs-item pcs-cached" title="Cached data — refreshes when market is open">&#128190; '+fmtChartAge(cacheAge)+'</span>':'<span class="pcs-item pcs-live">&#9679; Live</span>');
-  }
-
-  var isDark=!document.body.hasAttribute('data-light');
-  var gridColor=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)';
-  var tickColor=isDark?'#505c72':'#8896af';
-
-  if(PICK_CHART_INST){PICK_CHART_INST.destroy();PICK_CHART_INST=null;}
-
-  var maxVol=Math.max.apply(null,vols)||1;
-
-  PICK_CHART_INST=new Chart(canvas,{
-    type:'line',
-    data:{
-      labels:labels,
-      datasets:[{
-        data:prices,
-        borderColor:lineColor,
-        borderWidth:2,
-        pointRadius:0,
-        pointHoverRadius:4,
-        pointHoverBackgroundColor:lineColor,
-        fill:true,
-        backgroundColor:fillColor,
-        tension:0.2,
-        yAxisID:'y'
-      },{
-        data:vols,
-        type:'bar',
-        backgroundColor:lineColor+'22',
-        borderColor:'transparent',
-        borderWidth:0,
-        yAxisID:'vol',
-        barPercentage:0.8
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:isDark?'#1e2433':'#ffffff',
-          borderColor:isDark?'#2d3748':'#dde1ec',
-          borderWidth:1,
-          titleColor:isDark?'#8892a8':'#4a5568',
-          bodyColor:isDark?'#e2e8f4':'#1a2035',
-          padding:10,
-          callbacks:{
-            title:function(items){return labels[items[0].dataIndex];},
-            label:function(c){
-              if(c.datasetIndex===0) return ' Price: '+f$(c.raw);
-              var v=c.raw;
-              if(v>=1e6) return ' Vol: '+(v/1e6).toFixed(1)+'M';
-              if(v>=1e3) return ' Vol: '+(v/1e3).toFixed(0)+'K';
-              return ' Vol: '+v;
-            }
-          }
-        }
-      },
-      scales:{
-        x:{
-          grid:{color:gridColor,drawBorder:false},
-          ticks:{color:tickColor,maxTicksLimit:7,font:{size:10}},
-          border:{display:false}
-        },
-        y:{
-          position:'right',
-          grid:{color:gridColor,drawBorder:false},
-          ticks:{color:tickColor,font:{size:10},callback:function(v){return f$(v);}},
-          border:{display:false}
-        },
-        vol:{
-          position:'left',
-          grid:{display:false},
-          ticks:{display:false},
-          border:{display:false},
-          max:maxVol*6
-        }
-      }
-    }
-  });
+  drawChartOnCanvas(canvas,'pickChartStat',pairs,period,fromCache,cacheAge,PICK_CHART_INST,function(inst){PICK_CHART_INST=inst;});
 }
 
 // ─── LOAD PICK CHART (Alpaca → Yahoo → cache) ────────────────────────────────
@@ -1427,14 +1565,82 @@ function loadPickChart(ticker,period){
 // ─── PICKS RENDERER ───────────────────────────────────────────────────────────
 var STEPS=['Scanning STOCK Act disclosures...','Cross-referencing analyst ratings...','Running AI prediction models...','Ranking by conviction score...'];
 
-function fetchPrices(){
-  return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+ALL_STOCKS.map(function(s){return s.ticker;}).join(','))).then(function(r){return r.json();}).then(function(d){
-    (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){
-      var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});
-      if(s&&q.regularMarketPrice){s.livePrice=q.regularMarketPrice;s.liveChg=q.regularMarketChangePercent||0;LIVE_PRICES[q.symbol]=q.regularMarketPrice;}
+// ─── LIVE PRICE FETCHING ──────────────────────────────────────────────────────
+// Alpaca /snapshots gives latest trade price — authenticated, no CORS proxy, works after hours
+function fetchPricesAlpaca(){
+  var key=document.getElementById('apiKey').value.trim();
+  var sec=document.getElementById('apiSec').value.trim();
+  if(!key||!sec) return Promise.reject(new Error('no keys'));
+  var syms=ALL_STOCKS.map(function(s){return s.ticker;}).join(',');
+  return fetch(ALPACA_DATA+'/v2/stocks/snapshots?symbols='+encodeURIComponent(syms)+'&feed=iex',{
+    headers:{'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':sec}
+  }).then(function(r){
+    if(!r.ok) throw new Error('alpaca snapshots '+r.status);
+    return r.json();
+  }).then(function(d){
+    var count=0;
+    ALL_STOCKS.forEach(function(s){
+      var snap=d[s.ticker];
+      if(!snap) return;
+      // latestTrade.p is the most recent trade price
+      var price=(snap.latestTrade&&snap.latestTrade.p)||(snap.minuteBar&&snap.minuteBar.c)||(snap.dailyBar&&snap.dailyBar.c);
+      var prevClose=snap.prevDailyBar&&snap.prevDailyBar.c;
+      if(price){
+        s.livePrice=price;
+        s.liveChg=prevClose?((price-prevClose)/prevClose*100):0;
+        LIVE_PRICES[s.ticker]=price;
+        count++;
+      }
     });
-    return true;
-  }).catch(function(){return false;});
+    return count>0;
+  });
+}
+
+// Yahoo CORS proxy fallback — same as before but now truly a fallback
+function fetchPricesYahoo(){
+  var syms=ALL_STOCKS.map(function(s){return s.ticker;}).join(',');
+  return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+syms))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){
+        var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});
+        if(s&&q.regularMarketPrice){
+          s.livePrice=q.regularMarketPrice;
+          s.liveChg=q.regularMarketChangePercent||0;
+          LIVE_PRICES[q.symbol]=q.regularMarketPrice;
+        }
+      });
+      return true;
+    });
+}
+
+// Try Alpaca first, fall back to Yahoo
+function fetchPrices(){
+  return fetchPricesAlpaca().catch(function(){return fetchPricesYahoo();}).catch(function(){return false;});
+}
+
+// After picks are rendered, refresh prices in the DOM without full re-render
+function patchLivePrices(){
+  var priceEl=document.getElementById('liveTopPrice');
+  var chgEl=document.getElementById('liveTopChg');
+  var sharesEl=document.getElementById('liveTopShares');
+  if(!priceEl) return;
+  var ticker=priceEl.dataset.ticker;
+  var lp=LIVE_PRICES[ticker];
+  if(!lp) return;
+  var s=ALL_STOCKS.find(function(x){return x.ticker===ticker;})||{};
+  var chg=s.liveChg||0;var isUp=chg>=0;
+  priceEl.textContent=f$(lp);
+  if(chgEl){
+    chgEl.textContent=(isUp?'+':'')+chg.toFixed(2)+'% \u00a0\u2014\u00a0 $'+ORDER_AMT+' = '+(ORDER_AMT/lp).toFixed(4)+' sh';
+    chgEl.className='tr-chg '+(isUp?'up':'dn');
+  }
+  if(sharesEl) sharesEl.textContent='$'+ORDER_AMT+' = '+(ORDER_AMT/lp).toFixed(4)+' sh';
+  // Sidebar
+  var spEl=document.getElementById('sideSnapPrice');
+  var scEl=document.getElementById('sideSnapChg');
+  if(spEl) spEl.textContent=f$(lp);
+  if(scEl){scEl.textContent=(isUp?'+':'')+chg.toFixed(2)+'%';scEl.style.color=isUp?'#00c087':'#f03e3e';}
 }
 
 function getDailyPick(){
@@ -1453,8 +1659,8 @@ function renderPicks(sorted,live){
   if(snap){
     snap.innerHTML='<div class="stats-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
       +'<div class="as-box"><div class="as-val">'+pick.ticker+'</div><div class="as-lbl">Top Pick</div></div>'
-      +'<div class="as-box"><div class="as-val" style="color:'+(isUp?'#00c087':'#f03e3e')+'">'+(isUp?'+':'')+chg.toFixed(2)+'%</div><div class="as-lbl">Day Change</div></div>'
-      +'<div class="as-box"><div class="as-val">'+f$(p)+'</div><div class="as-lbl">Price</div></div>'
+      +'<div class="as-box"><div class="as-val" id="sideSnapChg" style="color:'+(isUp?'#00c087':'#f03e3e')+'">'+(isUp?'+':'')+chg.toFixed(2)+'%</div><div class="as-lbl">Day Change</div></div>'
+      +'<div class="as-box"><div class="as-val" id="sideSnapPrice">'+f$(p)+'</div><div class="as-lbl">Price</div></div>'
       +'<div class="as-box"><div class="as-val"><span class="cv-lbl '+cvCls+'">'+cv+'</span></div><div class="as-lbl">Conviction</div></div>'
       +'</div>'
       +'<div style="font-size:11px;color:var(--tx2);line-height:1.6">'+pick.why.split('.')[0]+'.</div>';
@@ -1465,7 +1671,10 @@ function renderPicks(sorted,live){
   html+='<div class="card">';
   html+='<div class="ticker-row">'
     +'<div class="tr-left"><div class="tk">'+pick.ticker+'</div><div class="tn">'+pick.company+'</div></div>'
-    +'<div class="tr-right"><div class="tr-price">'+f$(p)+'</div><div class="tr-chg '+(isUp?'up':'dn')+'">'+(isUp?'+':'')+chg.toFixed(2)+'% &nbsp;&mdash;&nbsp; $'+ORDER_AMT+' = '+(ORDER_AMT/p).toFixed(4)+' sh</div></div>'
+    +'<div class="tr-right">'
+    +'<div class="tr-price" id="liveTopPrice" data-ticker="'+pick.ticker+'">'+f$(p)+'</div>'
+    +'<div class="tr-chg '+(isUp?'up':'dn')+'" id="liveTopChg">'+(isUp?'+':'')+chg.toFixed(2)+'% &nbsp;&mdash;&nbsp; $'+ORDER_AMT+' = '+(p?((ORDER_AMT/p).toFixed(4)):'--')+' sh</div>'
+    +'</div>'
     +'</div>';
   html+='<div class="tags">'
     +'<span class="tag t-g nc">'+pick.rating+'</span>'
@@ -1507,11 +1716,11 @@ function renderPicks(sorted,live){
   html+='</div>';
 
   // Runner-ups
-  html+='<div class="lbl" style="margin-bottom:8px">Runner-Up Picks <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">Click to explore sector</span></div>';
+  html+='<div class="lbl" style="margin-bottom:8px">Runner-Up Picks <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">Click for full details &amp; chart</span></div>';
   html+='<div class="runner-grid">';
   runners.forEach(function(r){
     var rp=r.livePrice||r.fb;var rc=r.liveChg||0;var ru=rc>=0;
-    html+='<div class="rc" onclick="openSectorModal(\''+r.sector+'\')">'
+    html+='<div class="rc" onclick="openStockModal(\''+r.ticker+'\',null)">'
       +'<div class="rc-tk">'+r.ticker+'</div>'
       +'<div class="rc-co">'+r.company+'</div>'
       +'<div class="rc-pr">'+f$(rp)+'</div>'
@@ -1522,29 +1731,25 @@ function renderPicks(sorted,live){
   html+='</div>';
 
   // Hidden Gems
-  html+='<div class="lbl" style="margin-bottom:8px">Hidden Gem Picks <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">AI bear / base / bull predictions</span></div>';
+  html+='<div class="lbl" style="margin-bottom:8px">Hidden Gem Picks <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx3)">Click for full details &amp; chart</span></div>';
   html+='<div class="gem-grid">';
   GEMS.forEach(function(g){
     var gp=g.livePrice||g.fb;var gc=g.liveChg||0;var gu=gc>=0;var gcColor=gu?'#00c087':'#f03e3e';
-    html+='<div class="gem-c">'
+    html+='<div class="gem-c" style="cursor:pointer" onclick="openStockModal(\''+g.ticker+'\',null)">'
       +'<div class="gc-top">'
       +'<div class="gc-tk">'+g.ticker+'</div>'
       +'<div class="gc-co">'+g.company+'</div>'
       +'<div class="gc-badges">'
-      +'<span class="tag '+g.tCls+'" onclick="openSectorModal(\''+g.sector+'\')">'+g.theme+' &#8599;</span>'
+      +'<span class="tag '+g.tCls+' nc">'+g.theme+'</span>'
       +'<span class="tag t-s nc">'+g.rating+'</span>'
       +'</div>'
       +'</div>'
       +'<div class="gc-pr">'+f$(gp)+' <span style="font-size:11px;font-weight:700;color:'+gcColor+'">'+(gu?'+':'')+gc.toFixed(2)+'%</span></div>'
-      +'<div class="gc-roi">'+pct(g.bear)+' to +'+g.bull+'% projected range</div>'
+      +'<div class="gc-roi">'+pct(g.bear)+' to +'+g.bull+'% range</div>'
       +'<div style="margin:5px 0 4px">'+convBadge(g)+'</div>'
       +'<div class="sigs" style="margin-bottom:4px">'+sigChips(g)+'</div>'
-      +whosBuying(g,true)
-      +'<div class="gc-why">'+g.why+'</div>'
-      +predBars(g)
-      +'<div class="cat-txt">'+g.catalyst+'</div>'
-      +'<button class="btn-buy'+(bMode?' paper':'')+'" style="width:100%;margin-top:10px;font-size:12px;padding:8px" onclick="buyStock(\''+g.ticker+'\',this)">Buy $'+ORDER_AMT+(bMode?' (P)':'')+'</button>'
-      +bracketPanel(g.ticker)
+      +'<div class="gc-why">'+g.why.split('.')[0]+'.</div>'
+      +'<div style="font-size:10px;color:var(--b);margin-top:6px;font-weight:600">Tap for chart &amp; details &#8599;</div>'
       +'</div>';
   });
   html+='</div>';
@@ -1554,17 +1759,37 @@ function renderPicks(sorted,live){
   setTimeout(function(){loadPickChart(pick.ticker,'1M');},50);
 }
 
+var PRICE_REFRESH_INTERVAL=null;
+
 function run(){
   var btn=document.getElementById('pickBtn');
   btn.disabled=true;btn.textContent='Analyzing...';
   var si=0;
   document.getElementById('picksOut').innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Analyzing all signal sources</div><div class="spin-s" id="ss">'+STEPS[0]+'</div></div>';
   var t=setInterval(function(){si=(si+1)%STEPS.length;var el=document.getElementById('ss');if(el)el.textContent=STEPS[si];},1200);
+
+  // Clear any existing price refresh
+  if(PRICE_REFRESH_INTERVAL){clearInterval(PRICE_REFRESH_INTERVAL);PRICE_REFRESH_INTERVAL=null;}
+
   fetchPrices().then(function(live){
     clearInterval(t);
     renderPicks(getDailyPick(),live);
     btn.textContent='&#9889; Analyze & Get Today\'s Picks';
     btn.disabled=false;
+
+    // Second fetch after render — catches cases where first fetch returned stale fb prices
+    // because Alpaca snapshots resolves independently and may update LIVE_PRICES after render
+    setTimeout(function(){
+      fetchPrices().then(function(){patchLivePrices();});
+    },1500);
+
+    // Live price refresh every 30s while Picks tab is visible
+    PRICE_REFRESH_INTERVAL=setInterval(function(){
+      var tab=document.getElementById('tab-picks');
+      if(tab&&tab.classList.contains('active')){
+        fetchPrices().then(function(){patchLivePrices();});
+      }
+    },30000);
   });
 }
 
