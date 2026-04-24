@@ -439,6 +439,15 @@ input:checked+.tg-sl:before{transform:translateX(15px)}
 .modal-cl{background:none;border:none;font-size:22px;color:var(--tx3);cursor:pointer;padding:0 4px;line-height:1;transition:color .15s}
 .modal-cl:hover{color:var(--r)}
 
+/* ── STOCK DETAIL MODAL HEADER ── */
+.sm-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:10px}
+.sm-hl .sm-tk{font-size:28px;font-weight:900;letter-spacing:-1px;line-height:1}
+.sm-hl .sm-co{font-size:12px;color:var(--tx2);margin-top:2px}
+.sm-hr{text-align:right;flex-shrink:0}
+.sm-pr{font-size:22px;font-weight:800;letter-spacing:-.5px}
+.sm-chg{font-size:13px;font-weight:600;margin-top:2px}
+.sm-chg.up{color:var(--g)}.sm-chg.dn{color:var(--r)}
+
 /* ── PICK STOCK CHART ── */
 .pick-chart-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:14px 14px 10px;margin:12px 0}
 .pick-chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
@@ -568,7 +577,7 @@ input:checked+.tg-sl:before{transform:translateX(15px)}
 <div id="tab-picks" class="panel active">
   <div class="two-col">
     <div class="main-col">
-      <button class="btn-run" id="pickBtn" onclick="run()">&#9889; Analyze &amp; Get Today's Picks</button>
+      <button class="btn-run" id="pickBtn" onclick="run()">⚡ Analyze &amp; Get Today's Picks</button>
       <div id="picksOut"></div>
     </div>
     <div class="side-col">
