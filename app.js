@@ -81,7 +81,26 @@ var LIVE_URL='https://api.alpaca.markets';
 
 function base(){return MODE==='paper'?PAPER:LIVE_URL;}
 function prx(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u);}
-function hdrs(){return {'APCA-API-KEY-ID':document.getElementById('apiKey').value.trim(),'APCA-API-SECRET-KEY':document.getElementById('apiSec').value.trim(),'Content-Type':'application/json'};}
+
+// ─── KEY STORAGE ─────────────────────────────────────────────────────────────
+// Keys are saved to localStorage on connect so they're available before the
+// connect panel is opened, and for background fetches that run at page load.
+function saveKeys(){
+  var k=document.getElementById('apiKey').value.trim();
+  var s=document.getElementById('apiSec').value.trim();
+  if(k) localStorage.setItem('psp_key',k);
+  if(s) localStorage.setItem('psp_sec',s);
+}
+function getKey(){return document.getElementById('apiKey').value.trim()||localStorage.getItem('psp_key')||'';}
+function getSec(){return document.getElementById('apiSec').value.trim()||localStorage.getItem('psp_sec')||'';}
+// Pre-fill inputs from storage on load
+(function(){
+  var k=localStorage.getItem('psp_key'),s=localStorage.getItem('psp_sec');
+  if(k){var el=document.getElementById('apiKey');if(el)el.value=k;}
+  if(s){var el2=document.getElementById('apiSec');if(el2)el2.value=s;}
+})();
+
+function hdrs(){return {'APCA-API-KEY-ID':getKey(),'APCA-API-SECRET-KEY':getSec(),'Content-Type':'application/json'};}
 function alpaca(path,opts){opts=opts||{};return fetch(base()+path,Object.assign({},opts,{headers:Object.assign({},hdrs(),opts.headers||{})}));}
 function f$(v){return '$'+parseFloat(v||0).toFixed(2);}
 function fPct(v){return (v>=0?'+':'')+parseFloat(v).toFixed(2)+'%';}
@@ -148,9 +167,18 @@ function showTab(name,el){
   if(panel) panel.classList.add('active');
   if(el) el.classList.add('active');
   if(name==='sectors') renderSectorGrid();
-  if(name==='portfolio') loadPortfolio();
+  if(name==='portfolio'){
+    loadPortfolio();
+    // Auto-refresh portfolio every 15s while tab is open
+    if(PORTFOLIO_REFRESH) clearInterval(PORTFOLIO_REFRESH);
+    PORTFOLIO_REFRESH=setInterval(function(){
+      var tab=document.getElementById('tab-portfolio');
+      if(tab&&tab.classList.contains('active')) loadPortfolio();
+      else{clearInterval(PORTFOLIO_REFRESH);PORTFOLIO_REFRESH=null;}
+    },15000);
+  }
   if(name==='watchlist') renderWatchlist();
-  if(name==='orders'&&CONNECTED) loadOrders();
+  if(name==='orders') loadOrders();
   if(name==='search'){
     var si=document.getElementById('srchIn');
     if(si) setTimeout(function(){si.focus();},50);
@@ -262,6 +290,7 @@ function predBars(g){
 
 // ─── ALPACA ───────────────────────────────────────────────────────────────────
 function connectAlpaca(){
+  saveKeys();
   var btn=document.getElementById('conBtn');
   btn.textContent='Connecting...';btn.disabled=true;
   document.getElementById('sDot').className='nav-conn-dot';
@@ -358,12 +387,15 @@ function refreshAcctQuick(){
 }
 
 // ─── PORTFOLIO ────────────────────────────────────────────────────────────────
-// FIX: Alpaca portfolio history uses '1Y' not '1A'
 var PERIOD_MAP={'1W':'1W','1M':'1M','3M':'3M','1A':'1Y'};
+var PORTFOLIO_REFRESH=null;
 
 function loadPortfolio(){
   var out=document.getElementById('portfolioOut');
-  if(!CONNECTED){out.innerHTML='<div class="empty">Connect your Alpaca account to view your portfolio</div>';return;}
+  // Use keys from storage — works even if not explicitly "connected" this session
+  if(!getKey()||!getSec()){
+    out.innerHTML='<div class="empty">Connect your Alpaca account to view your portfolio</div>';return;
+  }
   out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Loading portfolio...</div></div>';
   var alpacaPeriod=PERIOD_MAP[CHART_PERIOD]||CHART_PERIOD;
   Promise.all([
@@ -441,7 +473,7 @@ function renderPortfolioChart(hist){
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
 function loadOrders(){
   var out=document.getElementById('ordersOut');
-  if(!CONNECTED){out.innerHTML='<div class="empty">Connect your Alpaca account to view orders</div>';return;}
+  if(!getKey()||!getSec()){out.innerHTML='<div class="empty">Connect your Alpaca account to view orders</div>';return;}
   out.innerHTML='<div class="spin"><div class="spn"></div><div class="spin-t">Loading orders...</div></div>';
   alpaca('/v2/orders?status=all&limit=100&direction=desc').then(function(r){return r.json();}).then(function(orders){
     ALL_ORDERS=orders;
@@ -1425,8 +1457,7 @@ function alpacaStartDate(daysBack){
 
 // Fetch bars from Alpaca data API using stored keys
 function fetchAlpacaBars(ticker,period){
-  var key=document.getElementById('apiKey').value.trim();
-  var sec=document.getElementById('apiSec').value.trim();
+  var key=getKey(),sec=getSec();
   if(!key||!sec) return Promise.reject(new Error('no keys'));
   var cfg=PICK_PERIOD_MAP[period]||PICK_PERIOD_MAP['1M'];
   var start=alpacaStartDate(cfg.alpaca.daysBack);
@@ -1566,52 +1597,45 @@ function loadPickChart(ticker,period){
 var STEPS=['Scanning STOCK Act disclosures...','Cross-referencing analyst ratings...','Running AI prediction models...','Ranking by conviction score...'];
 
 // ─── LIVE PRICE FETCHING ──────────────────────────────────────────────────────
-// Alpaca /snapshots gives latest trade price — authenticated, no CORS proxy, works after hours
 function fetchPricesAlpaca(){
-  var key=document.getElementById('apiKey').value.trim();
-  var sec=document.getElementById('apiSec').value.trim();
+  var key=getKey(),sec=getSec();
   if(!key||!sec) return Promise.reject(new Error('no keys'));
-  var syms=ALL_STOCKS.map(function(s){return s.ticker;}).join(',');
-  return fetch(ALPACA_DATA+'/v2/stocks/snapshots?symbols='+encodeURIComponent(syms)+'&feed=iex',{
-    headers:{'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':sec}
-  }).then(function(r){
-    if(!r.ok) throw new Error('alpaca snapshots '+r.status);
-    return r.json();
-  }).then(function(d){
-    var count=0;
-    ALL_STOCKS.forEach(function(s){
-      var snap=d[s.ticker];
-      if(!snap) return;
-      // latestTrade.p is the most recent trade price
-      var price=(snap.latestTrade&&snap.latestTrade.p)||(snap.minuteBar&&snap.minuteBar.c)||(snap.dailyBar&&snap.dailyBar.c);
-      var prevClose=snap.prevDailyBar&&snap.prevDailyBar.c;
-      if(price){
-        s.livePrice=price;
-        s.liveChg=prevClose?((price-prevClose)/prevClose*100):0;
-        LIVE_PRICES[s.ticker]=price;
-        count++;
-      }
+  // Use symbols as repeated query params — don't encode commas
+  var syms=ALL_STOCKS.map(function(s){return s.ticker;});
+  var url=ALPACA_DATA+'/v2/stocks/snapshots?'+syms.map(function(t){return 'symbols='+encodeURIComponent(t);}).join('&')+'&feed=iex';
+  return fetch(url,{headers:{'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':sec}})
+    .then(function(r){if(!r.ok) throw new Error('alpaca snapshots '+r.status);return r.json();})
+    .then(function(d){
+      var count=0;
+      ALL_STOCKS.forEach(function(s){
+        var snap=d[s.ticker];if(!snap) return;
+        var price=(snap.latestTrade&&snap.latestTrade.p)||(snap.minuteBar&&snap.minuteBar.c)||(snap.dailyBar&&snap.dailyBar.c);
+        var prevClose=snap.prevDailyBar&&snap.prevDailyBar.c;
+        if(price){s.livePrice=price;s.liveChg=prevClose?((price-prevClose)/prevClose*100):0;LIVE_PRICES[s.ticker]=price;count++;}
+      });
+      return count>0;
     });
-    return count>0;
-  });
 }
 
-// Yahoo CORS proxy fallback — same as before but now truly a fallback
+// Yahoo fallback — batch into groups of 20 to avoid URL length limits
 function fetchPricesYahoo(){
-  var syms=ALL_STOCKS.map(function(s){return s.ticker;}).join(',');
-  return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+syms))
-    .then(function(r){return r.json();})
-    .then(function(d){
-      (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){
-        var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});
-        if(s&&q.regularMarketPrice){
-          s.livePrice=q.regularMarketPrice;
-          s.liveChg=q.regularMarketChangePercent||0;
-          LIVE_PRICES[q.symbol]=q.regularMarketPrice;
-        }
-      });
-      return true;
-    });
+  var syms=ALL_STOCKS.map(function(s){return s.ticker;});
+  var batches=[];
+  for(var i=0;i<syms.length;i+=20) batches.push(syms.slice(i,i+20));
+  return Promise.all(batches.map(function(batch){
+    return fetch(prx('https://query1.finance.yahoo.com/v7/finance/quote?symbols='+batch.join(',')))
+      .then(function(r){return r.json();})
+      .then(function(d){
+        (d&&d.quoteResponse&&d.quoteResponse.result||[]).forEach(function(q){
+          var s=ALL_STOCKS.find(function(x){return x.ticker===q.symbol;});
+          if(s&&q.regularMarketPrice){
+            s.livePrice=q.regularMarketPrice;
+            s.liveChg=q.regularMarketChangePercent||0;
+            LIVE_PRICES[q.symbol]=q.regularMarketPrice;
+          }
+        });
+      }).catch(function(){});
+  })).then(function(){return true;});
 }
 
 // Try Alpaca first, fall back to Yahoo
@@ -1645,7 +1669,12 @@ function patchLivePrices(){
 
 function getDailyPick(){
   var day=Math.floor(Date.now()/86400000);
-  return DB.map(function(s,i){return Object.assign({},s,{score:s.polScore*0.55+s.conf*0.45+(day%(i+4)===0?6:0)});}).sort(function(a,b){return b.score-a.score;});
+  // Sort directly on DB references so livePrice set on ALL_STOCKS is visible
+  return DB.map(function(s,i){
+    // Find the matching object in ALL_STOCKS which has livePrice set
+    var live=ALL_STOCKS.find(function(x){return x.ticker===s.ticker;})||s;
+    return Object.assign({},live,{score:s.polScore*0.55+s.conf*0.45+(day%(i+4)===0?6:0)});
+  }).sort(function(a,b){return b.score-a.score;});
 }
 
 function renderPicks(sorted,live){
@@ -1774,11 +1803,10 @@ function run(){
   fetchPrices().then(function(live){
     clearInterval(t);
     renderPicks(getDailyPick(),live);
-    btn.textContent='&#9889; Analyze & Get Today\'s Picks';
+    btn.textContent='\u26a1 Analyze & Get Today\'s Picks';
     btn.disabled=false;
 
-    // Second fetch after render — catches cases where first fetch returned stale fb prices
-    // because Alpaca snapshots resolves independently and may update LIVE_PRICES after render
+    // Second fetch after render to patch any stale prices
     setTimeout(function(){
       fetchPrices().then(function(){patchLivePrices();});
     },1500);
@@ -1795,12 +1823,21 @@ function run(){
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 loadAB();
-// Auto-run picks on load for better UX
+
 window.addEventListener('DOMContentLoaded',function(){
-  // Small delay so page renders first
+  // Pre-fill key inputs from storage (IIFE above runs before DOM ready on some browsers)
+  var k=localStorage.getItem('psp_key'),s2=localStorage.getItem('psp_sec');
+  if(k){var ki=document.getElementById('apiKey');if(ki&&!ki.value)ki.value=k;}
+  if(s2){var si=document.getElementById('apiSec');if(si&&!si.value)si.value=s2;}
+
+  // Auto-connect silently if keys are stored — makes portfolio/prices work on load
+  if(k&&s2){
+    connectAlpaca();
+  }
+
   setTimeout(function(){
     if(document.getElementById('tab-picks').classList.contains('active')){
       run();
     }
-  },400);
+  },600);
 });
